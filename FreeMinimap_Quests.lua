@@ -183,16 +183,15 @@ end
 --[[ One QuestPOIFrame per zone (only the player's zone: see Read), covering the zone's whole map.
 	It draws its shapes for its place on screen at the moment of drawing, so it is drawn again whenever
 	its rectangle changes (QuestsUpdate). A new frame replaces it when the zone's quests change. ]]
---[[ The real minimap's outline is a pale line with a light blue glow. The client has no colour setter
-	for this frame (/fmm pins: DrawAll DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture
-	SetFillAlpha SetFillTexture SetMapID…): the look comes from the textures only. Tried alone:
-	  - the world map's edge (UI-QuestBlob-Outside): one band on the outer side, strong blue glow;
-	  - the minimap's ring (UI-QuestBlob-MinimapRing): a ring, so two lines across the edge — apart at
-	    scalar 0.3 and more, merged into one fine line at 0.12.
-	So two frames drawing the same areas: the merged ring line (LINE) over a faint world map glow (HALO).
+--[[ The look of the areas' outline. The client has no colour setter for this frame (/fmm pins: DrawAll
+	DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture SetFillAlpha SetFillTexture SetMapID…):
+	only textures, width and opacity. Tried in game on 15/11 (Thibault):
+	  - world map edge (UI-QuestBlob-Outside), scalar 0.25, alpha 200: one blue line with a glow — VALIDATED;
+	  - same at 0.6 / 255: glow far too strong;
+	  - minimap ring (UI-QuestBlob-MinimapRing): a ring, so two lines across the edge (apart from 0.3),
+	    one blue line at 0.12; with a fill: rejected; ring line over a faint glow (two frames): rejected.
 	No fill: Thibault wants only the outline. ]]
-local LINE = { texture = "Interface\\Minimap\\UI-QuestBlob-MinimapRing", scalar = 0.12, alpha = 255 }
-local HALO = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0.25, alpha = 110 }
+local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0.25, alpha = 200 }
 
 local function MakeBlobFrame(mapID, look, level)
 	local ok, f = pcall(CreateFrame, "QuestPOIFrame", nil, areas)
@@ -209,13 +208,12 @@ local function MakeBlobFrame(mapID, look, level)
 	return f
 end
 
---{ a zone's areas: the line frame, with the glow frame under it as f.__halo }--
+--{ a zone's areas (f.__halo: a second frame under it, none for now) }--
 local function NewBlob(mapID)
 	if blobsWork == false then return end
-	local f = MakeBlobFrame(mapID, LINE, areas:GetFrameLevel() + 1)
+	local f = MakeBlobFrame(mapID, LINE, areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
-	f.__halo = MakeBlobFrame(mapID, HALO, areas:GetFrameLevel())
 	return f
 end
 
