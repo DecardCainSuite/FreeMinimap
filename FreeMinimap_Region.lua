@@ -274,6 +274,15 @@ local function SizeOverlay(pc, ppy)
 	end
 end
 
+--{ other addons' minimap icons on the region map (FreeMinimap_Pins.lua); ppy nil = none }--
+local function Pins(id, x, y, ppy)
+	if addonTab.PinsUpdate then
+		local cw, ch = ClipSize()
+		local ok = pcall(addonTab.PinsUpdate, id, x, y, ppy, cw, ch)
+		if not ok and addonTab.PinsHide then pcall(addonTab.PinsHide) end
+	end
+end
+
 local function Layout()
 	local pc = addonTab.pc
 	if not pc then return end
@@ -284,6 +293,7 @@ local function Layout()
 	if not best then
 		msg:SetText("No map")
 		marker:Hide()
+		Pins()
 		return
 	end
 	local id = ResolveMap(best)
@@ -294,6 +304,7 @@ local function Layout()
 	if not x or not y then
 		msg:SetText("Position unavailable")
 		marker:Hide()
+		Pins()
 		return
 	end
 
@@ -304,10 +315,11 @@ local function Layout()
 		if used then
 			R.usingTiles = true
 			for _, t in ipairs(tiles) do t:Hide() end
-			if not ppy then marker:Hide() return end --{ "too zoomed out" message already set }--
+			if not ppy then marker:Hide(); Pins() return end --{ "too zoomed out" message already set }--
 			msg:SetText("")
 			marker:SetShown(not pc.regionOverlay)
 			if pc.regionOverlay then SizeOverlay(pc, ppy) end
+			Pins(id, x, y, ppy)
 			return
 		end
 	end
@@ -319,15 +331,15 @@ local function Layout()
 	if state.n == 0 then
 		msg:SetText("No tiles or map art here")
 		marker:Hide()
+		Pins()
 		return
 	end
 	msg:SetText("")
 	marker:SetShown(not pc.regionOverlay) --{ with the overlay, the real minimap draws the player arrow }--
 
-	if pc.regionOverlay then
-		local ww = C_Map.GetMapWorldSize and C_Map.GetMapWorldSize(id)
-		if ww and ww > 0 then SizeOverlay(pc, z * state.lw / ww) end
-	end
+	local ww = C_Map.GetMapWorldSize and C_Map.GetMapWorldSize(id)
+	local artPpy = (ww and ww > 0) and z * state.lw / ww or nil
+	if pc.regionOverlay and artPpy then SizeOverlay(pc, artPpy) end
 
 	local px, py = x * state.lw * z, y * state.lh * z
 	local tw, th = state.tw * z, state.th * z
@@ -342,6 +354,7 @@ local function Layout()
 
 	local facing = GetPlayerFacing and GetPlayerFacing()
 	if facing then arrow:SetRotation(facing) end
+	Pins(id, x, y, artPpy)
 end
 
 local acc, acc2 = 0, 0

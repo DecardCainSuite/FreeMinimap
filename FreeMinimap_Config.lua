@@ -401,7 +401,7 @@ end
 
 -- ------------------------------------------------------------ defaults (reset)
 local RESET_KEYS = { "posMode", "width", "height", "scale", "buttonScale", "zoom", "regionEnabled", "regionZoom", "regionOverlay",
-                     "overlayRound", "overlayCal", "regionSource", "tileScale", "axisOverride" }
+                     "overlayRound", "overlayCal", "regionSource", "tileScale", "axisOverride", "regionPins" }
 function ns.ResetDefaults()
     local d, pc = ns.character, ns.pc
     if not (d and pc) then return end
@@ -658,6 +658,9 @@ local function Build()
     SliderRow(p, "Tile scale", LX, y(3), COLW, "tileScale", { lo = 0.1, hi = 4, step = 0.05, fmt = fmtNum, parse = atLeast(0.02) })
     SliderRow(p, "Map art zoom", LX, y(4), COLW, "regionZoom", { lo = 0.1, hi = 6, step = 0.05, fmt = fmtNum, parse = atLeast(0.02) })
     Hint(p, "Draws the terrain around you in the whole rectangle, centred on you and north-up (minimap rotation is switched off while it is on). Terrain tiles are the game's own minimap pictures; map art is the world-map illustration, used where no tile exists. Tile scale = screen pixels per yard. Mouse wheel on the map zooms it.", LX, y(5) + 6, COLW)
+    SwitchRow(p, "Icons of other addons", LX, y(8), COLW,
+        function() return Cfg().regionPins ~= false end, function(v) Set("regionPins", v and true or false) end)
+    Hint(p, "Questie, RestedXP, TomTom, gatherers… also show their minimap icons on the region map, beyond the real minimap, with their tooltips. Icons that point the way float on the edge of the region map.", LX, y(9) + 6, COLW)
     Caption(p, "Real minimap on top", RX, 0)
     SwitchRow(p, "Overlay the real minimap", RX, y(1), COLW, bool("regionOverlay"))
     SwitchRow(p, "Round (disc)", RX, y(2), COLW, bool("overlayRound"))
