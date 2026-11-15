@@ -33,7 +33,7 @@ icons:EnableMouse(false)
 local areas = CreateFrame("Frame", "FreeMinimapQuestAreas", R)
 areas:SetAllPoints(R)
 areas:SetFrameStrata("HIGH")
-areas:SetFrameLevel(3)   --{ over the terrain, under the real minimap }--
+areas:SetFrameLevel(8)   --{ over the terrain (its tile layer is at 4), under the real minimap (10) }--
 areas:EnableMouse(false)
 
 local quests = {}        --{ { id, mapID, wx (west), wy (north), complete, button } }
