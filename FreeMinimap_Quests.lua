@@ -20,7 +20,8 @@ local REDRAW = 0.05      --{ seconds between two redraws of a quest area while t
 local MARGIN = 400       --{ yards around the window where zones are still read
 local ICON = 20          --{ icon size
 local MARK = 0.6         --{ the state mark over the badge, part of the icon
-local BORDER = 0.12      --{ width of the areas' edge (QuestPOIFrame border scalar)
+local BORDER = 0.3       --{ width of the areas' edge (QuestPOIFrame border scalar): at 0.12 the line came out blue
+local FILL = 48          --{ opacity (0-255) of the hatched inside, faint as on the real minimap
 
 local BADGE = { atlas = "UI-QuestPoi-QuestNumber", texture = "Interface\\GossipFrame\\ActiveQuestIcon" }
 local IN_PROGRESS = { atlas = "Quest-In-Progress-Icon-yellow", texture = "Interface\\GossipFrame\\IncompleteQuestIcon" }
@@ -201,7 +202,7 @@ local function NewBlob(mapID)
 		(BORDER) the two lines merge into one fine pale line. The world map's edge texture was a strong blue. ]]
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
 	pcall(f.SetBorderTexture, f, "Interface\\Minimap\\UI-QuestBlob-MinimapRing")
-	pcall(f.SetFillAlpha, f, 0)
+	pcall(f.SetFillAlpha, f, FILL)
 	pcall(f.SetBorderAlpha, f, 255)
 	pcall(f.SetBorderScalar, f, BORDER)
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
