@@ -197,12 +197,13 @@ local function NewBlob(mapID)
 	blobsWork = true
 	f:SetFrameLevel(areas:GetFrameLevel())
 	f:EnableMouse(false)
-	--{ the minimap's look: only the outline (its ring texture), no fill }--
+	--[[ only the outline, no fill. The minimap's ring texture is a ring: laid across the edge it gave two
+		lines (iteration 5); the world map's edge texture is a single band on the outer side. ]]
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
-	pcall(f.SetBorderTexture, f, "Interface\\Minimap\\UI-QuestBlob-MinimapRing")
+	pcall(f.SetBorderTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Outside")
 	pcall(f.SetFillAlpha, f, 0)
 	pcall(f.SetBorderAlpha, f, 255)
-	pcall(f.SetBorderScalar, f, 1.0)
+	pcall(f.SetBorderScalar, f, 0.6)
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	f:Hide()
 	return f
@@ -257,7 +258,10 @@ local function Read(maps, inst)
 					seen[key] = true
 					local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id) or false
 					quests[#quests + 1] = { id = id, mapID = mapID, wx = wx, wy = wy, complete = complete, tracked = id == tracked }
-					if not complete then
+					--[[ areas: only for the zone the player is in (maps[1]). On this client a QuestPOIFrame draws
+						the player's own zone whatever map it is given: the frames of the neighbouring zones drew
+						the same areas again, shrunk into their own rectangles (iteration 5, "ghosts"). ]]
+					if not complete and mapID == maps[1] then
 						perMap[mapID] = perMap[mapID] or {}
 						local l = perMap[mapID]
 						local dup = false
