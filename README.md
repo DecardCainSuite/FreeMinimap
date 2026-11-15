@@ -28,6 +28,8 @@ The native minimap only ever shows a few hundred yards around you: making it big
 
 The **real minimap** can stay on top of it, as a disc or a square, at exactly the same scale, so quest icons, the player arrow, gathering nodes and pings stay where they belong.
 
+Beyond the real minimap, the region map shows **your quests** (with their objectives in the tooltip and the outline of their areas, as on the minimap) and the **icons of other addons**: Questie, RestedXP (next steps included), TomTom, gatherers… every addon using HereBeDragons. Icons that point the way float on the edge of the region map.
+
 | Setting | What it does |
 |---|---|
 | **Width / Height** | Set separately. Sliders cover the usual range; type any value in the box, there is no upper limit. |
@@ -35,6 +37,8 @@ The **real minimap** can stay on top of it, as a disc or a square, at exactly th
 | **Buttons & text** | Size of the buttons and texts around the minimap, independent from its size. |
 | **Native zoom** | 0 (widest) to 5 (closest), remembered per character. |
 | **Region map** | Terrain tiles or map art, tile scale (screen pixels per yard), map art zoom. |
+| **Quests of the log** | Your quests and their areas on the whole region map; click one to track it. |
+| **Icons of other addons** | Questie, RestedXP, TomTom… icons beyond the real minimap, with their tooltips. |
 | **Real minimap on top** | On or off, disc or square, fine calibration if the two layers don't line up. |
 | **Tile axes** | Automatic; change it only if the terrain looks misplaced. |
 | **Elements around the map** | Zone, coordinates, clock, tracking, calendar, day/night, mail, difficulty, addon compartment and zoom: place each one, scale it, and show it always, on hover or never. |

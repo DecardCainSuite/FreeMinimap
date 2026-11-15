@@ -198,8 +198,11 @@ local function NewBlob(mapID)
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
 	pcall(f.SetBorderTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Outside")
 	pcall(f.SetFillAlpha, f, 0)
-	pcall(f.SetBorderAlpha, f, 200)
+	pcall(f.SetBorderAlpha, f, 255)
 	pcall(f.SetBorderScalar, f, 0.25)   --{ a thin edge: at 0.6 the glow was far too strong }--
+	--{ paler, closer to the real minimap's own outline (where the client lets the colour be set) }--
+	if f.SetBorderColor then pcall(f.SetBorderColor, f, 0.82, 0.92, 1, 1) end
+	if f.SetVertexColor then pcall(f.SetVertexColor, f, 0.82, 0.92, 1, 1) end
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	f:Hide()
 	return f

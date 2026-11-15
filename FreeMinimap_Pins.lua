@@ -441,6 +441,16 @@ function addonTab.PinsDebug()
 		end
 	end
 	if n == 0 then P("no icon drawn by HereBeDragons on the real minimap right now (walk next to one)") end
+	--{ what a QuestPOIFrame can do on this client (colour of the quest areas…) }--
+	local okq, q = pcall(CreateFrame, "QuestPOIFrame")
+	local mt = okq and q and getmetatable(q)
+	local idx = mt and type(mt.__index) == "table" and mt.__index
+	if idx then
+		local names = {}
+		for k in pairs(idx) do if type(k) == "string" and (k:find("Blob") or k:find("Border") or k:find("Fill") or k:find("Draw") or k:find("Color") or k:find("Map")) then names[#names + 1] = k end end
+		table.sort(names)
+		P("QuestPOIFrame: %s", table.concat(names, " "))
+	end
 	if FreeMinimapDB then FreeMinimapDB.pinsDebug = out end
 end
 
