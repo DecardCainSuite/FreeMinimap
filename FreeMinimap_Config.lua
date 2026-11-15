@@ -864,6 +864,10 @@ SlashCmdList["FREEMINIMAP"] = function(msg)
     if ns.conflict then ns.ToggleOptions(); return end
     local pc = ns.pc
     if not pc then return end
+    if msg == "pins" then
+        if ns.PinsDebug then ns.PinsDebug() end
+        return
+    end
     if msg == "region" or msg == "r" then
         ns.SetRegion(not pc.regionEnabled)
     elseif msg:sub(1, 4) == "axes" then

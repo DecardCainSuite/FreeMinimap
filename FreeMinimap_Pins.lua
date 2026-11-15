@@ -404,6 +404,45 @@ local function Rebuild(lib, px, py, inst, halfW, halfH)
 	used = #candidates
 end
 
+--[[ /fmm pins: where the player and a few icons are according to each source, to compare our copies with
+	what HereBeDragons draws on the real minimap. Printed and kept in FreeMinimapDB.pinsDebug (read after /reload). ]]
+local last = {}
+function addonTab.PinsDebug()
+	local out = {}
+	local function P(fmt, ...) local line = string.format(fmt, ...); out[#out + 1] = line; print("|cffff8a3dFMM|r " .. line) end
+	local function C(f) local x, y = Get(f, "GetCenter"); local e = Get(f, "GetEffectiveScale") or 1; if x then return x * e, y * e end end
+	P("map %s x %.4f y %.4f ppy %.4f window %dx%d", tostring(last.mapID), last.x or -1, last.y or -1, last.ppy or -1, last.cw or 0, last.ch or 0)
+	local rx, ry = C(R); local mx, my = C(Minimap); local lx, ly = C(layer)
+	P("centres (screen px): region %.1f,%.1f  minimap %.1f,%.1f  layer %.1f,%.1f", rx or -1, ry or -1, mx or -1, my or -1, lx or -1, ly or -1)
+	local hbd = Core()
+	if last.mapID then
+		local ok, inst, vec = pcall(C_Map.GetWorldPosFromMapPos, last.mapID, CreateVector2D(last.x, last.y))
+		if ok and vec then local a, b = vec:GetXY(); P("C_Map world (north, west) %.1f, %.1f inst %s", a, b, tostring(inst)) end
+		if hbd then local a, b, i = hbd:GetWorldCoordinatesFromZone(last.x, last.y, last.mapID); P("HBD zone->world (x=west, y=north) %s, %s inst %s", tostring(a), tostring(b), tostring(i)) end
+	end
+	if hbd and hbd.GetPlayerWorldPosition then local a, b, i = hbd:GetPlayerWorldPosition(); P("HBD player (UnitPosition) %s, %s inst %s", tostring(a), tostring(b), tostring(i)) end
+	local ok, uy, ux, _, ui = pcall(UnitPosition, "player"); if ok then P("UnitPosition %s, %s inst %s", tostring(uy), tostring(ux), tostring(ui)) end
+	local lib = Lib()
+	local n = 0
+	if lib and last.px then
+		for src, data in pairs(lib.minimapPins) do
+			if n >= 5 then break end
+			if src ~= nudgeIcon and Get(src, "IsVisible") and IsNum(data.x) then
+				local sx, sy = C(src)
+				local le = layer:GetEffectiveScale()
+				if sx and mx then
+					n = n + 1
+					P("pin %d HBD on minimap %.1f,%.1f  ours %.1f,%.1f (dx %.1f yd, dy %.1f yd)", n,
+						(sx - mx) / le, (sy - my) / le, (last.px - data.x) * last.ppy, (data.y - last.py) * last.ppy,
+						last.px - data.x, data.y - last.py)
+				end
+			end
+		end
+	end
+	if n == 0 then P("no icon drawn by HereBeDragons on the real minimap right now (walk next to one)") end
+	if FreeMinimapDB then FreeMinimapDB.pinsDebug = out end
+end
+
 --[[ Called by the region map on every layout (FreeMinimap_Region.lua) with the map it centres on,
 	the player's place on it, the screen pixels per yard and the window's size. ]]
 function addonTab.PinsUpdate(mapID, x, y, ppy, cw, ch)
@@ -418,6 +457,7 @@ function addonTab.PinsUpdate(mapID, x, y, ppy, cw, ch)
 		if used > 0 then HideAll() end
 		return
 	end
+	last.mapID, last.x, last.y, last.ppy, last.cw, last.ch, last.px, last.py = mapID, x, y, ppy, cw, ch, px, py
 	local pc = addonTab.pc
 	local halfW, halfH = cw / 2, ch / 2
 	local now = GetTime()
