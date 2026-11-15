@@ -16,6 +16,7 @@ local R = FreeMinimapRegion
 if not R then return end
 
 local REFRESH = 1        --{ seconds between two reads of the quest log (and at once after its events)
+local REDRAW = 0.05      --{ seconds between two redraws of a quest area while the view keeps changing
 local MARGIN = 400       --{ yards around the window where zones are still read
 local ICON = 20          --{ icon size
 local MARK = 0.6         --{ the state mark over the badge, part of the icon
@@ -179,14 +180,9 @@ local function NewIcon()
 end
 
 --{ ===================== quest areas (QuestPOIFrame) ===================== }--
---[[ A QuestPOIFrame keeps the shapes it drew: on this client DrawNone does not wipe them, and drawing
-	again after a resize or a move left the old outlines in place (iteration 4). So a frame draws its
-	quests once, for one size; the view then only moves it (SetPoint) and scales it (SetScale), as
-	the world map does with its canvas. A new frame is made when the quests change, or when the zoom
-	has changed so much that the outline would look too thick or too thin (RESCALE). Old frames are
-	hidden for good (never drawn again). ]]
-local RESCALE_MIN, RESCALE_MAX = 0.6, 1.6
-
+--[[ One QuestPOIFrame per zone (only the player's zone: see Read), covering the zone's whole map.
+	It draws its shapes for its place on screen at the moment of drawing, so it is drawn again whenever
+	its rectangle changes (QuestsUpdate). A new frame replaces it when the zone's quests change. ]]
 local function NewBlob(mapID)
 	if blobsWork == false then return end
 	local ok, f = pcall(CreateFrame, "QuestPOIFrame", nil, areas)
@@ -202,8 +198,8 @@ local function NewBlob(mapID)
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
 	pcall(f.SetBorderTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Outside")
 	pcall(f.SetFillAlpha, f, 0)
-	pcall(f.SetBorderAlpha, f, 255)
-	pcall(f.SetBorderScalar, f, 0.6)
+	pcall(f.SetBorderAlpha, f, 200)
+	pcall(f.SetBorderScalar, f, 0.25)   --{ a thin edge: at 0.6 the glow was far too strong }--
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	f:Hide()
 	return f
@@ -336,28 +332,31 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 			local left, top = math.min(x0, x1), math.max(y0, y1)
 			local w, h = math.abs(x1 - x0), math.abs(y1 - y0)
 			local f = blobs[mapID]
-			if f and f.__base then
-				local k = ppy / f.__base
-				if k < RESCALE_MIN or k > RESCALE_MAX then Retire(mapID); f = nil end
-			end
 			if not f and w > 1 and h > 1 then
 				f = NewBlob(mapID)
-				if f then
-					blobs[mapID] = f
-					f.__base = ppy
+				if f then blobs[mapID] = f end
+			end
+			if f then
+				--[[ the shapes are drawn for the frame's place on screen at the moment of drawing and do not
+					follow it afterwards (iteration 6: shapes left behind after a zoom). So, as Blizzard's map
+					and OpenMap do: on every change of the rectangle, place the frame, make the game work its
+					rectangle out now (GetRect), then wipe and draw again (at most every REDRAW seconds). ]]
+				local c = f.__rect
+				if not c or math.abs(c[1] - left) > 0.5 or math.abs(c[2] - top) > 0.5 or math.abs(c[3] - w) > 0.5 or math.abs(c[4] - h) > 0.5 then
+					f.__rect = { left, top, w, h }
 					f:SetScale(1)
-					f:SetSize(w, h)
 					f:ClearAllPoints()
 					f:SetPoint("TOPLEFT", areas, "CENTER", left, top)
-					f:Show()
+					f:SetSize(w, h)
+					f.__dirty = true
+				end
+				if not f:IsShown() then f:Show(); f.__dirty = true end
+				if f.__dirty and now - (f.__drawn or -1) >= REDRAW then
+					f.__dirty, f.__drawn = false, now
+					pcall(f.GetRect, f)
+					if f.DrawNone then pcall(f.DrawNone, f) end
 					for _, id in ipairs(ids) do pcall(f.DrawBlob, f, id, true) end
 				end
-			elseif f then
-				local k = ppy / f.__base
-				f:SetScale(k)
-				f:ClearAllPoints()
-				f:SetPoint("TOPLEFT", areas, "CENTER", left / k, top / k)
-				if not f:IsShown() then f:Show() end
 			end
 		else
 			Retire(mapID)
