@@ -373,6 +373,7 @@ local function Rebuild(lib, px, py, inst, halfW, halfH)
 					n = n + 1
 					if n > MAX_PINS then break end
 					candidates[n] = { src = src, data = data, float = false, reg = lib.worldmapPins, world = true }
+					taken[Key(inst, data.x, data.y)] = true   --{ RestedXP puts one per map (zone, sub-zone): one is enough }--
 				end
 			end
 		end
