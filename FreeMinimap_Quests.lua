@@ -20,6 +20,7 @@ local REDRAW = 0.05      --{ seconds between two redraws of a quest area while t
 local MARGIN = 400       --{ yards around the window where zones are still read
 local ICON = 20          --{ icon size
 local MARK = 0.6         --{ the state mark over the badge, part of the icon
+local BORDER = 0.12      --{ width of the areas' edge (QuestPOIFrame border scalar)
 
 local BADGE = { atlas = "UI-QuestPoi-QuestNumber", texture = "Interface\\GossipFrame\\ActiveQuestIcon" }
 local IN_PROGRESS = { atlas = "Quest-In-Progress-Icon-yellow", texture = "Interface\\GossipFrame\\IncompleteQuestIcon" }
@@ -193,16 +194,16 @@ local function NewBlob(mapID)
 	blobsWork = true
 	f:SetFrameLevel(areas:GetFrameLevel())
 	f:EnableMouse(false)
-	--[[ only the outline, no fill. The minimap's ring texture is a ring: laid across the edge it gave two
-		lines (iteration 5); the world map's edge texture is a single band on the outer side. ]]
+	--[[ only the outline, no fill, pale like the real minimap's. The client has no colour setter for
+		this frame (/fmm pins: DrawAll DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture
+		SetFillAlpha SetFillTexture SetMapID…), so the colour comes from the texture. The minimap's own
+		ring texture gives two parallel lines across the edge (iteration 6); with a very thin edge
+		(BORDER) the two lines merge into one fine pale line. The world map's edge texture was a strong blue. ]]
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
-	pcall(f.SetBorderTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Outside")
+	pcall(f.SetBorderTexture, f, "Interface\\Minimap\\UI-QuestBlob-MinimapRing")
 	pcall(f.SetFillAlpha, f, 0)
 	pcall(f.SetBorderAlpha, f, 255)
-	pcall(f.SetBorderScalar, f, 0.25)   --{ a thin edge: at 0.6 the glow was far too strong }--
-	--{ paler, closer to the real minimap's own outline (where the client lets the colour be set) }--
-	if f.SetBorderColor then pcall(f.SetBorderColor, f, 0.82, 0.92, 1, 1) end
-	if f.SetVertexColor then pcall(f.SetVertexColor, f, 0.82, 0.92, 1, 1) end
+	pcall(f.SetBorderScalar, f, BORDER)
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	f:Hide()
 	return f
