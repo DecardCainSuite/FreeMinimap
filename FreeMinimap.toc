@@ -1,0 +1,27 @@
+## Interface: 120100, 110207, 50504, 40402, 30405, 20506, 16001, 11509
+## Title: Free Minimap
+## Notes: Rectangular minimap of any size, with a region map drawn from the game's own terrain tiles. /fmm for options.
+## Category: Map & Minimap
+## Author: Thibault, based on the work of Dejablue, Bõb, Ertkal and Eurytus
+## Version: 1.7.0
+## X-Credits: Based on DejaMinimap with permission.
+## IconTexture: Interface\AddOns\FreeMinimap\Media\icon
+## OptionalDeps: FreeHub
+## SavedVariablesPerCharacter: FreeMinimap_PC, FreeMinimapDBPC
+## SavedVariables: FreeMinimapDB
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Libs\LibFreeProfiles-1.0\LibFreeProfiles-1.0.lua
+
+Defaults.lua
+FreeMinimap.lua [AllowLoadGameType mainline]
+FreeMinimap_Buttons.lua [AllowLoadGameType mainline]
+FreeMinimap_Position.lua [AllowLoadGameType mainline]
+FreeMinimap_Tiles.lua [AllowLoadGameType mainline]
+FreeMinimap_Region.lua [AllowLoadGameType mainline]
+FreeMinimap_Config.lua [AllowLoadGameType mainline]
+FreeMinimap_Button.lua [AllowLoadGameType mainline]
+FreeMinimap_Classic.lua [AllowLoadGameType vanilla, tbc, wrath, cata, mists]

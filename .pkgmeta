@@ -1,0 +1,4 @@
+package-as: FreeMinimap
+
+ignore:
+  - README.md
