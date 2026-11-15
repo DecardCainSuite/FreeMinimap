@@ -20,8 +20,6 @@ local REDRAW = 0.05      --{ seconds between two redraws of a quest area while t
 local MARGIN = 400       --{ yards around the window where zones are still read
 local ICON = 20          --{ icon size
 local MARK = 0.6         --{ the state mark over the badge, part of the icon
-local BORDER = 0.3       --{ width of the areas' edge (QuestPOIFrame border scalar): at 0.12 the line came out blue
-local FILL = 48          --{ opacity (0-255) of the hatched inside, faint as on the real minimap
 
 local BADGE = { atlas = "UI-QuestPoi-QuestNumber", texture = "Interface\\GossipFrame\\ActiveQuestIcon" }
 local IN_PROGRESS = { atlas = "Quest-In-Progress-Icon-yellow", texture = "Interface\\GossipFrame\\IncompleteQuestIcon" }
@@ -185,28 +183,39 @@ end
 --[[ One QuestPOIFrame per zone (only the player's zone: see Read), covering the zone's whole map.
 	It draws its shapes for its place on screen at the moment of drawing, so it is drawn again whenever
 	its rectangle changes (QuestsUpdate). A new frame replaces it when the zone's quests change. ]]
-local function NewBlob(mapID)
-	if blobsWork == false then return end
+--[[ The real minimap's outline is a pale line with a light blue glow. The client has no colour setter
+	for this frame (/fmm pins: DrawAll DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture
+	SetFillAlpha SetFillTexture SetMapID…): the look comes from the textures only. Tried alone:
+	  - the world map's edge (UI-QuestBlob-Outside): one band on the outer side, strong blue glow;
+	  - the minimap's ring (UI-QuestBlob-MinimapRing): a ring, so two lines across the edge — apart at
+	    scalar 0.3 and more, merged into one fine line at 0.12.
+	So two frames drawing the same areas: the merged ring line (LINE) over a faint world map glow (HALO).
+	No fill: Thibault wants only the outline. ]]
+local LINE = { texture = "Interface\\Minimap\\UI-QuestBlob-MinimapRing", scalar = 0.12, alpha = 255 }
+local HALO = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0.25, alpha = 110 }
+
+local function MakeBlobFrame(mapID, look, level)
 	local ok, f = pcall(CreateFrame, "QuestPOIFrame", nil, areas)
-	if not ok or not f or type(f.DrawBlob) ~= "function" then
-		blobsWork = false
-		return
-	end
-	blobsWork = true
-	f:SetFrameLevel(areas:GetFrameLevel())
+	if not ok or not f or type(f.DrawBlob) ~= "function" then return end
+	f:SetFrameLevel(level)
 	f:EnableMouse(false)
-	--[[ only the outline, no fill, pale like the real minimap's. The client has no colour setter for
-		this frame (/fmm pins: DrawAll DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture
-		SetFillAlpha SetFillTexture SetMapID…), so the colour comes from the texture. The minimap's own
-		ring texture gives two parallel lines across the edge (iteration 6); with a very thin edge
-		(BORDER) the two lines merge into one fine pale line. The world map's edge texture was a strong blue. ]]
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
-	pcall(f.SetBorderTexture, f, "Interface\\Minimap\\UI-QuestBlob-MinimapRing")
-	pcall(f.SetFillAlpha, f, FILL)
-	pcall(f.SetBorderAlpha, f, 255)
-	pcall(f.SetBorderScalar, f, BORDER)
+	pcall(f.SetFillAlpha, f, 0)
+	pcall(f.SetBorderTexture, f, look.texture)
+	pcall(f.SetBorderAlpha, f, look.alpha)
+	pcall(f.SetBorderScalar, f, look.scalar)
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	f:Hide()
+	return f
+end
+
+--{ a zone's areas: the line frame, with the glow frame under it as f.__halo }--
+local function NewBlob(mapID)
+	if blobsWork == false then return end
+	local f = MakeBlobFrame(mapID, LINE, areas:GetFrameLevel() + 1)
+	if not f then blobsWork = false return end
+	blobsWork = true
+	f.__halo = MakeBlobFrame(mapID, HALO, areas:GetFrameLevel())
 	return f
 end
 
@@ -215,6 +224,7 @@ local function Retire(mapID)
 	if f then
 		f:Hide()
 		f:ClearAllPoints()
+		if f.__halo then f.__halo:Hide(); f.__halo:ClearAllPoints() end
 		blobs[mapID] = nil
 	end
 end
@@ -235,7 +245,7 @@ end
 local function HideAll()
 	for _, b in ipairs(pool) do b:Hide(); b.quest = nil end
 	--{ the area frames are only hidden: their drawing stays valid for when the map shows again }--
-	for _, f in pairs(blobs) do f:Hide() end
+	for _, f in pairs(blobs) do f:Hide(); if f.__halo then f.__halo:Hide() end end
 	wipe(quests)
 	lastKey = nil
 	dirty = true
@@ -349,18 +359,23 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 				local c = f.__rect
 				if not c or math.abs(c[1] - left) > 0.5 or math.abs(c[2] - top) > 0.5 or math.abs(c[3] - w) > 0.5 or math.abs(c[4] - h) > 0.5 then
 					f.__rect = { left, top, w, h }
-					f:SetScale(1)
-					f:ClearAllPoints()
-					f:SetPoint("TOPLEFT", areas, "CENTER", left, top)
-					f:SetSize(w, h)
 					f.__dirty = true
 				end
-				if not f:IsShown() then f:Show(); f.__dirty = true end
+				if not f:IsShown() then f.__dirty = true end
 				if f.__dirty and now - (f.__drawn or -1) >= REDRAW then
 					f.__dirty, f.__drawn = false, now
-					pcall(f.GetRect, f)
-					if f.DrawNone then pcall(f.DrawNone, f) end
-					for _, id in ipairs(ids) do pcall(f.DrawBlob, f, id, true) end
+					for _, g in ipairs({ f.__halo or false, f }) do
+						if g then
+							g:SetScale(1)
+							g:ClearAllPoints()
+							g:SetPoint("TOPLEFT", areas, "CENTER", left, top)
+							g:SetSize(w, h)
+							if not g:IsShown() then g:Show() end
+							pcall(g.GetRect, g)
+							if g.DrawNone then pcall(g.DrawNone, g) end
+							for _, id in ipairs(ids) do pcall(g.DrawBlob, g, id, true) end
+						end
+					end
 				end
 			end
 		else
