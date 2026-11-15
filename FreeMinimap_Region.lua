@@ -274,10 +274,14 @@ local function SizeOverlay(pc, ppy)
 	end
 end
 
---{ other addons' minimap icons on the region map (FreeMinimap_Pins.lua); ppy nil = none }--
+--{ icons on the region map: the quest log's (FreeMinimap_Quests.lua) and other addons' (FreeMinimap_Pins.lua); ppy nil = none }--
 local function Pins(id, x, y, ppy)
+	local cw, ch = ClipSize()
+	if addonTab.QuestsUpdate then
+		local ok = pcall(addonTab.QuestsUpdate, id, x, y, ppy, cw, ch)
+		if not ok and addonTab.QuestsHide then pcall(addonTab.QuestsHide) end
+	end
 	if addonTab.PinsUpdate then
-		local cw, ch = ClipSize()
 		local ok = pcall(addonTab.PinsUpdate, id, x, y, ppy, cw, ch)
 		if not ok and addonTab.PinsHide then pcall(addonTab.PinsHide) end
 	end

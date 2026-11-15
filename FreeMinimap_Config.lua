@@ -401,7 +401,7 @@ end
 
 -- ------------------------------------------------------------ defaults (reset)
 local RESET_KEYS = { "posMode", "width", "height", "scale", "buttonScale", "zoom", "regionEnabled", "regionZoom", "regionOverlay",
-                     "overlayRound", "overlayCal", "regionSource", "tileScale", "axisOverride", "regionPins" }
+                     "overlayRound", "overlayCal", "regionSource", "tileScale", "axisOverride", "regionPins", "regionQuests" }
 function ns.ResetDefaults()
     local d, pc = ns.character, ns.pc
     if not (d and pc) then return end
@@ -660,7 +660,7 @@ local function Build()
     Hint(p, "Draws the terrain around you in the whole rectangle, centred on you and north-up (minimap rotation is switched off while it is on). Terrain tiles are the game's own minimap pictures; map art is the world-map illustration, used where no tile exists. Tile scale = screen pixels per yard. Mouse wheel on the map zooms it.", LX, y(5) + 6, COLW)
     SwitchRow(p, "Icons of other addons", LX, y(8), COLW,
         function() return Cfg().regionPins ~= false end, function(v) Set("regionPins", v and true or false) end)
-    Hint(p, "Questie, RestedXP, TomTom, gatherers… also show their minimap icons on the region map, beyond the real minimap, with their tooltips. Icons that point the way float on the edge of the region map.", LX, y(9) + 6, COLW)
+    Hint(p, "Questie, RestedXP, TomTom, gatherers… also show their icons on the region map, beyond the real minimap, with their tooltips (RestedXP: the next steps too). Icons that point the way float on the edge of the region map.", LX, y(9) + 6, COLW)
     Caption(p, "Real minimap on top", RX, 0)
     SwitchRow(p, "Overlay the real minimap", RX, y(1), COLW, bool("regionOverlay"))
     SwitchRow(p, "Round (disc)", RX, y(2), COLW, bool("overlayRound"))
@@ -670,6 +670,9 @@ local function Build()
     Dropdown(p, "Tile axes", RX, y(4), COLW, function() return AXES end,
         function() return tonumber(Cfg().axisOverride) or 0 end, function(v) Set("axisOverride", v) end)
     Hint(p, "With the overlay, the real minimap (icons, arrow, pings) sits on the region map at the same scale. Calibration 1 = exact; tweak it if the two do not line up. Change the tile axes only if the terrain looks misplaced.", RX, y(5) + 6, COLW)
+    SwitchRow(p, "Quests of the log", RX, y(8), COLW,
+        function() return Cfg().regionQuests ~= false end, function(v) Set("regionQuests", v and true or false) end)
+    Hint(p, "Your quests and their areas on the whole region map, as on the world map (the real minimap shows only those within its own radius). Click a quest to track it.", RX, y(9) + 6, COLW)
     OnRefresh(function() end)
 
     -- General

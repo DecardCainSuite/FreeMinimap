@@ -33,6 +33,7 @@ if not addonTab.character then
 		regionOverlay = true, --{ keep the REAL minimap on top of the region map, scaled to match it
 		overlayRound = true,  --{ real minimap shown as a disc (true) or a square (false)
 		overlayCal = 1,       --{ fine calibration of the overlay size if it does not line up with the map
+		regionQuests = true,  --{ the quest log's quests and their areas drawn on the region map
 		regionPins = true,    --{ other addons' minimap icons (Questie, RestedXP, TomTom…) also drawn on the region map
 	}
 end

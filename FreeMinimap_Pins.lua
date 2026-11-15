@@ -4,7 +4,8 @@
 	Questie, RestedXP, TomTom, gatherers… put their minimap icons on the Minimap through the
 	HereBeDragons-Pins-2.0 library. The library keeps every icon in one table
 	(pins.minimapPins[icon] = { instanceID, x, y, floatOnEdge, … }: a world position in yards) and
-	only draws those inside the real minimap's view radius (or on its edge).
+	only draws those inside the real minimap's view radius (or on its edge). Its world map icons
+	(pins.worldmapPins) are read too: RestedXP only puts the current step on the minimap.
 
 	This module reads that table and draws a copy of each icon at its true place on the region map,
 	where the real minimap does not reach. The copy repeats the icon's textures and texts (RestedXP's
@@ -69,11 +70,45 @@ local function Enabled()
 	return pc and pc.regionEnabled and pc.regionPins ~= false and R:IsShown()
 end
 
+--[[ ===================== redraw request to the library =====================
+	HereBeDragons works out the minimap's size only when the player moves or the zoom changes: after
+	FreeMinimap resizes the Minimap (region map scale, zone change, /reload…) the icons on the real
+	minimap stayed misplaced until the next zoom. Adding an icon makes the library redraw everything on
+	its next frame, so we keep one invisible icon of our own and add it again whenever needed. ]]
+local nudgeIcon, nudgeQueued
+local function Nudge()
+	nudgeQueued = false
+	local lib, hbd = Lib(), Core()
+	if not (lib and hbd and lib.AddMinimapIconWorld and hbd.GetPlayerWorldPosition) then return end
+	local ok, x, y, inst = pcall(hbd.GetPlayerWorldPosition, hbd)
+	if not ok or not IsNum(x) or not IsNum(y) or not inst then return end
+	if not nudgeIcon then
+		nudgeIcon = CreateFrame("Frame", nil, UIParent)
+		nudgeIcon:SetSize(1, 1)
+		nudgeIcon:SetAlpha(0)
+		nudgeIcon:EnableMouse(false)
+	end
+	pcall(lib.AddMinimapIconWorld, lib, addonName, nudgeIcon, inst, x, y, false)
+end
+local function QueueNudge()
+	if nudgeQueued then return end
+	nudgeQueued = true
+	if C_Timer and C_Timer.After then C_Timer.After(0, Nudge) else Nudge() end
+end
+addonTab.PinsNudge = QueueNudge
+Minimap:HookScript("OnSizeChanged", QueueNudge)
+
 --{ ===================== floatOnEdge of the originals ===================== }--
 local function Suppress(src, data)
 	if data.floatOnEdge and not suppressed[src] then
 		suppressed[src] = data
 		data.floatOnEdge = false
+		--{ the library only redraws when the player moves: hide now the copy it left on the minimap's edge }--
+		if data.onEdge then
+			data.onEdge = nil
+			if type(src.Hide) == "function" then pcall(src.Hide, src) end
+		end
+		QueueNudge()
 	end
 end
 
@@ -83,6 +118,7 @@ local function RestoreAll()
 		--{ only if the library still holds the same record for this icon (records are recycled) }--
 		if lib and lib.minimapPins[src] == data then data.floatOnEdge = true end
 		suppressed[src] = nil
+		QueueNudge()
 	end
 end
 
@@ -294,29 +330,64 @@ end
 
 --[[ Rebuild the candidates: icons on our continent near the window, their looks copied.
 	px, py, inst: the player (library space); halfW/halfH: the window's half size in yards. ]]
+local taken = {}
+local SAME = 6   --{ yards: a world map icon this close to a minimap icon is the same thing (Questie puts both) }--
+local function Key(inst, x, y) return tostring(inst) .. ":" .. math.floor(x / SAME) .. ":" .. math.floor(y / SAME) end
+--{ a minimap icon in the same cell or a neighbouring one (no miss at a cell's border) }--
+local function Taken(inst, x, y)
+	local cx, cy = math.floor(x / SAME), math.floor(y / SAME)
+	for i = -1, 1 do
+		for j = -1, 1 do
+			if taken[tostring(inst) .. ":" .. (cx + i) .. ":" .. (cy + j)] then return true end
+		end
+	end
+	return false
+end
+
 local function Rebuild(lib, px, py, inst, halfW, halfH)
 	wipe(candidates)
 	local n = 0
 	for src, data in pairs(lib.minimapPins) do
 		if type(data) == "table" and data.instanceID == inst and IsNum(data.x) and IsNum(data.y)
-		   and type(src) == "table" and not src.hidden then  --{ Questie's FakeHide: the icon is filtered out }--
+		   and type(src) == "table" and not src.hidden and src ~= nudgeIcon then  --{ Questie's FakeHide: the icon is filtered out }--
 			local dx, dy = px - data.x, data.y - py
 			local float = data.floatOnEdge or suppressed[src] ~= nil
 			--{ near the window, or anywhere on the continent for an icon that floats on the edge }--
 			if float or (math.abs(dx) <= halfW + MARGIN and math.abs(dy) <= halfH + MARGIN) then
 				n = n + 1
 				if n > MAX_PINS then break end
-				candidates[n] = { src = src, data = data, float = float }
+				candidates[n] = { src = src, data = data, float = float, reg = lib.minimapPins }
+				taken[Key(inst, data.x, data.y)] = true
 			end
 		end
 	end
+	--[[ world map icons: some addons put only part of theirs on the minimap (RestedXP: the current
+		step; the next ones only on the world map). Those not already on the minimap (same place) are
+		copied too, near the window only, never floating. ]]
+	if type(lib.worldmapPins) == "table" and n <= MAX_PINS then
+		for src, data in pairs(lib.worldmapPins) do
+			if type(data) == "table" and data.instanceID == inst and IsNum(data.x) and IsNum(data.y)
+			   and type(src) == "table" and not src.hidden and not lib.minimapPins[src] then
+				local dx, dy = px - data.x, data.y - py
+				if math.abs(dx) <= halfW + MARGIN and math.abs(dy) <= halfH + MARGIN and not Taken(inst, data.x, data.y) then
+					n = n + 1
+					if n > MAX_PINS then break end
+					candidates[n] = { src = src, data = data, float = false, reg = lib.worldmapPins, world = true }
+				end
+			end
+		end
+	end
+	if n > MAX_PINS then candidates[n] = nil end
+	wipe(taken)
 	--{ copy the looks }--
 	for i, c in ipairs(candidates) do
 		local b = pool[i] or NewCopy()
 		pool[i] = b
 		b.src = c.src
 		local scale = 1
-		local se, le = Get(c.src, "GetEffectiveScale"), layer:GetEffectiveScale()
+		--{ a minimap icon keeps its size on screen; a world map icon (whose map may be zoomed or closed) its size in UI units }--
+		local se = c.world and UIParent:GetEffectiveScale() * (Get(c.src, "GetScale") or 1) or Get(c.src, "GetEffectiveScale")
+		local le = layer:GetEffectiveScale()
 		if IsNum(se) and IsNum(le) and le > 0 and se > 0 then scale = math.min(math.max(se / le, 0.05), 20) end
 		b:SetScale(scale)
 		local w, h = Get(c.src, "GetSize")
@@ -368,16 +439,16 @@ function addonTab.PinsUpdate(mapID, x, y, ppy, cw, ch)
 	for _, c in ipairs(candidates) do
 		local b, data = c.button, c.data
 		local placed = false
-		if c.visible and lib.minimapPins[c.src] == data then
+		if c.visible and c.reg[c.src] == data then
 			local dx, dy = px - data.x, data.y - py   --{ yards: + = west of the icon / north of the player }--
 			local inside = false
-			if radius then
+			if radius and not c.world then  --{ world map icons are never drawn by the real minimap }--
 				if square then inside = math.max(math.abs(dx), math.abs(dy)) <= radius
 				else inside = dx * dx + dy * dy <= radius * radius end
 			end
 			if inside then
 				--{ the real minimap draws it: give its float flag back so it behaves as usual }--
-				if suppressed[c.src] then data.floatOnEdge = true; suppressed[c.src] = nil end
+				if suppressed[c.src] then data.floatOnEdge = true; suppressed[c.src] = nil; QueueNudge() end
 			else
 				local sx, sy = dx * ppy, dy * ppy
 				local m = c.halfSize * c.scale
