@@ -41,8 +41,10 @@ The **real minimap** can stay on top of it, as a disc or a square, at exactly th
 | **Region map** | Terrain tiles or map art, tile scale (screen pixels per yard), map art zoom. |
 | **Real minimap on top** | On or off, disc or square, fine calibration if the two layers don't line up. |
 | **Tile axes** | Automatic; change it only if the terrain looks misplaced. |
+| **Elements around the map** | Zone, coordinates, clock, tracking, calendar, day/night, mail, difficulty, addon compartment and zoom: place each one, scale it, and show it always, on hover or never. |
+| **Profiles** | Each character gets its own profile; switch, copy, export or import them. |
 
-The minimap is moved with the game's Edit Mode (a button in the options opens it).
+Place the minimap yourself (X / Y, or unlock and drag it, kept safe in combat) or leave it to the game's Edit Mode.
 
 ## Commands
 

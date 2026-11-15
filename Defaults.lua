@@ -18,4 +18,5 @@ FreeMinimap_PC = {
 	["height"] = 175,
 	["regionSource"] = "tiles",
 	["size"] = 192,
+	["migrated"] = true,
 }
