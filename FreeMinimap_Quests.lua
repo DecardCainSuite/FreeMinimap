@@ -16,6 +16,7 @@ local R = FreeMinimapRegion
 if not R then return end
 
 local REFRESH = 1        --{ seconds between two reads of the quest log (and at once after its events)
+local REDRAW = 0.1       --{ seconds between two redraws of a quest area while the view keeps moving
 local MARGIN = 400       --{ yards around the window where zones are still read
 local ICON = 20          --{ icon size
 local MARK = 0.6         --{ the state mark over the badge, part of the icon
@@ -192,10 +193,11 @@ local function Blob(mapID)
 	f = frame
 	f:SetFrameLevel(areas:GetFrameLevel())
 	f:EnableMouse(false)
+	--{ the minimap's look: only the outline (its ring texture), no fill }--
 	pcall(f.SetFillTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Inside")
-	pcall(f.SetBorderTexture, f, "Interface\\WorldMap\\UI-QuestBlob-Outside")
-	pcall(f.SetFillAlpha, f, 128)
-	pcall(f.SetBorderAlpha, f, 192)
+	pcall(f.SetBorderTexture, f, "Interface\\Minimap\\UI-QuestBlob-MinimapRing")
+	pcall(f.SetFillAlpha, f, 0)
+	pcall(f.SetBorderAlpha, f, 255)
 	pcall(f.SetBorderScalar, f, 1.0)
 	if f.SetMapID then pcall(f.SetMapID, f, mapID) end
 	blobs[mapID] = f
@@ -210,8 +212,8 @@ local function DrawBlobs(perMap)
 		if same then for i = 1, #want do if want[i] ~= had[i] then same = false break end end end
 		if not same then
 			if f.DrawNone then pcall(f.DrawNone, f) end
-			for _, id in ipairs(want or {}) do pcall(f.DrawBlob, f, id, true) end
 			blobQuests[mapID] = want
+			f.__dirty, f.__drawn = true, nil   --{ drawn once placed (QuestsUpdate) }--
 		end
 		if not want then f:Hide() end
 	end
@@ -220,8 +222,8 @@ local function DrawBlobs(perMap)
 			local f = Blob(mapID)
 			if f then
 				if f.DrawNone then pcall(f.DrawNone, f) end
-				for _, id in ipairs(want) do pcall(f.DrawBlob, f, id, true) end
 				blobQuests[mapID] = want
+				f.__dirty, f.__drawn = true, nil   --{ drawn once placed (QuestsUpdate) }--
 			end
 		end
 	end
@@ -233,6 +235,7 @@ local function HideAll()
 		f:Hide()
 		if f.DrawNone then pcall(f.DrawNone, f) end
 		blobQuests[mapID] = nil
+		f.__rect = nil
 	end
 	wipe(quests)
 	lastKey = nil
@@ -333,9 +336,22 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 			local bottom, top = math.min(y0, y1), math.max(y0, y1)
 			local w, h = right - left, top - bottom
 			if w > 1 and h > 1 then
-				f:ClearAllPoints()
-				f:SetPoint("TOPLEFT", areas, "CENTER", left, top)
-				f:SetSize(w, h)
+				--[[ the frame draws its shapes for the rectangle it has when asked to draw: after a zoom or
+					a move they stayed where they were. Placed again and drawn again whenever the rectangle
+					changes (at most every REDRAW seconds while it keeps changing; the last change always). ]]
+				local c = f.__rect
+				if not c or math.abs(c[1] - left) > 0.5 or math.abs(c[2] - top) > 0.5 or math.abs(c[3] - w) > 0.5 or math.abs(c[4] - h) > 0.5 then
+					f.__rect = { left, top, w, h }
+					f:ClearAllPoints()
+					f:SetPoint("TOPLEFT", areas, "CENTER", left, top)
+					f:SetSize(w, h)
+					f.__dirty = true
+				end
+				if f.__dirty and now - (f.__drawn or -1) >= REDRAW then
+					f.__dirty, f.__drawn = false, now
+					if f.DrawNone then pcall(f.DrawNone, f) end
+					for _, id in ipairs(blobQuests[mapID]) do pcall(f.DrawBlob, f, id, true) end
+				end
 				if not f:IsShown() then f:Show() end
 			else
 				f:Hide()
