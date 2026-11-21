@@ -41,6 +41,7 @@ local quests = {}        --{ { id, mapID, wx (west), wy (north), complete, butto
 local blobs = {}         --{ [mapID] = QuestPOIFrame }
 local blobRect = {}      --{ [mapID] = { west0, north0, west1, north1 } (map corners 0,0 and 1,1) }
 local blobQuests = {}    --{ [mapID] = { questID, … } drawn }
+local blobTracked = {}   --{ [mapID] = the tracked quest's ID when its area is in that zone }
 local pool = {}
 local dirty, lastRead, lastKey = true, -1, nil
 local blobsWork          --{ nil = untested, false = QuestPOIFrame unavailable }
@@ -271,6 +272,15 @@ local function CurrentLook()
 	end
 	return LINE
 end
+--[[ (21/11, Thibault's captures) On the real minimap only the tracked quest's area has the bright line:
+	pale core #A5D1FF with its glow (the frame's "lit" state, see Light below). The other areas get a
+	faint line, about a third of the blue. So each zone has two frames: f (the other quests, faint) and
+	f.__focus over it (the tracked quest, lit). ]]
+local FAINT = 80   --{ border alpha of the untracked areas }
+local function FaintLook()
+	local l = CurrentLook()
+	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
+end
 
 local function MakeBlobFrame(mapID, look, level)
 	local ok, f = pcall(CreateFrame, "QuestPOIFrame", nil, areas)
@@ -287,13 +297,34 @@ local function MakeBlobFrame(mapID, look, level)
 	return f
 end
 
---{ a zone's areas (f.__halo: a second frame under it, none for now) }--
+--{ a zone's areas: f for the other quests, f.__focus over it for the tracked one }--
 local function NewBlob(mapID)
 	if blobsWork == false then return end
-	local f = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel())
+	local f = MakeBlobFrame(mapID, FaintLook(), areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
+	f.__focus = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel() + 1)
 	return f
+end
+
+--[[ UpdateMouseOverTooltip(x, y) lights the area under the point (pale line) and the light stays until
+	the next call. The focus frame only holds the tracked quest, so once drawn it is asked about a grid of
+	points until one falls in its area; that point is kept to light it again after a hover. ]]
+local GRID = 24
+local function Light(g)
+	if not g or type(g.UpdateMouseOverTooltip) ~= "function" then return end
+	if g.__lx then
+		local ok, a = pcall(g.UpdateMouseOverTooltip, g, g.__lx, g.__ly)
+		if ok and a and a ~= 0 then return end
+	end
+	g.__lx, g.__ly = nil, nil
+	for i = 1, GRID - 1 do
+		for j = 1, GRID - 1 do
+			local x, y = i / GRID, j / GRID
+			local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
+			if ok and a and a ~= 0 then g.__lx, g.__ly = x, y return end
+		end
+	end
 end
 
 local function Retire(mapID)
@@ -301,7 +332,7 @@ local function Retire(mapID)
 	if f then
 		f:Hide()
 		f:ClearAllPoints()
-		if f.__halo then f.__halo:Hide(); f.__halo:ClearAllPoints() end
+		if f.__focus then f.__focus:Hide(); f.__focus:ClearAllPoints() end
 		blobs[mapID] = nil
 	end
 end
@@ -315,20 +346,23 @@ end
 local function DrawBlobs(perMap)
 	for mapID in pairs(blobs) do
 		local want, had = perMap[mapID], blobQuests[mapID]
-		local same = want and had and #want == #had
+		local same = want and had and #want == #had and blobTracked[mapID] == perMap.__tracked[mapID]
 		if same then for i = 1, #want do if want[i] ~= had[i] then same = false break end end end
 		if not same then Retire(mapID) end
 	end
+	local tracked = perMap.__tracked
+	perMap.__tracked = nil
 	for mapID in pairs(blobQuests) do
 		if not perMap[mapID] then blobQuests[mapID] = nil end
 	end
-	for mapID, want in pairs(perMap) do blobQuests[mapID] = want end
+	wipe(blobTracked)
+	for mapID, want in pairs(perMap) do blobQuests[mapID] = want; blobTracked[mapID] = tracked[mapID] end
 end
 
 local function HideAll()
 	for _, b in ipairs(pool) do b:Hide(); b.quest = nil end
 	--{ the area frames are only hidden: their drawing stays valid for when the map shows again }--
-	for _, f in pairs(blobs) do f:Hide(); if f.__halo then f.__halo:Hide() end end
+	for _, f in pairs(blobs) do f:Hide(); if f.__focus then f.__focus:Hide() end end
 	wipe(quests)
 	lastKey = nil
 	dirty = true
@@ -367,6 +401,11 @@ local function Read(maps, inst)
 		end
 	end
 	for _, l in pairs(perMap) do table.sort(l) end
+	local t = {}
+	for mapID, l in pairs(perMap) do
+		for _, id in ipairs(l) do if id == tracked then t[mapID] = id end end
+	end
+	perMap.__tracked = t
 	for i, q in ipairs(quests) do
 		local b = pool[i] or NewIcon()
 		pool[i] = b
@@ -447,7 +486,9 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 				if not f:IsShown() then f.__dirty = true end
 				if f.__dirty and now - (f.__drawn or -1) >= REDRAW then
 					f.__dirty, f.__drawn = false, now
-					for _, g in ipairs({ f.__halo or false, f }) do
+					local focusID = blobTracked[mapID]
+					if f.__focus and not focusID then f.__focus:Hide() end
+					for _, g in ipairs({ f, (focusID and f.__focus) or false }) do
 						if g then
 							g:SetScale(1)
 							g:ClearAllPoints()
@@ -456,7 +497,13 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 							if not g:IsShown() then g:Show() end
 							pcall(g.GetRect, g)
 							if g.DrawNone then pcall(g.DrawNone, g) end
-							for _, id in ipairs(ids) do pcall(g.DrawBlob, g, id, true) end
+							if g == f then
+								for _, id in ipairs(ids) do if id ~= focusID then pcall(g.DrawBlob, g, id, true) end end
+							elseif focusID then
+								pcall(g.DrawBlob, g, focusID, true)
+								g.__lx = nil
+								Light(g)
+							end
 						end
 					end
 				end
@@ -509,8 +556,9 @@ local function HideHover()
 	hoverShown = nil
 	if lit then
 		lit = nil
-		for _, f in pairs(blobs) do
+		for mapID, f in pairs(blobs) do
 			if type(f.UpdateMouseOverTooltip) == "function" then pcall(f.UpdateMouseOverTooltip, f, -1, -1) end
+			if f.__focus and blobTracked[mapID] then Light(f.__focus) end
 		end
 	end
 end
@@ -527,7 +575,13 @@ local function Hover()
 	if not next(blobQuests) or not OverMapOnly() then HideHover() return end
 	local cx, cy = GetCursorPosition()
 	local found, objectives
-	for mapID, f in pairs(blobs) do
+	local frames = {}
+	for mapID, f0 in pairs(blobs) do
+		if f0.__focus and blobTracked[mapID] then frames[#frames + 1] = { mapID, f0.__focus } end
+		frames[#frames + 1] = { mapID, f0 }
+	end
+	for _, e in ipairs(frames) do
+		local mapID, f = e[1], e[2]
 		local ids = blobQuests[mapID]
 		if ids and f:IsShown() and type(f.UpdateMouseOverTooltip) == "function" then
 			local s = f:GetEffectiveScale()
@@ -537,6 +591,7 @@ local function Hover()
 				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
 				lit = true
 				local id = ok and QuestFromHit(a, ids)
+				if f.__lx and not id then Light(f) end
 				if id then
 					found = id
 					if type(n) == "number" and n > 0 and type(f.GetTooltipIndex) == "function" then
