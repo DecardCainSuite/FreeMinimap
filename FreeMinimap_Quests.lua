@@ -246,7 +246,7 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "edge_u", "edge_u_rev", "edge_v", "edge_v_rev" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4" }   --{ new names: the first ones stayed green (not found) in game, even after a restart }--
 local function CurrentLook()
 	local pc = addonTab.pc
 	local style = pc and tonumber(pc.edgeStyle) or 0
