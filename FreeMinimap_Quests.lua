@@ -308,21 +308,43 @@ local function NewBlob(mapID)
 end
 
 --[[ UpdateMouseOverTooltip(x, y) lights the area under the point (pale line) and the light stays until
-	the next call. The focus frame only holds the tracked quest, so once drawn it is asked about a grid of
-	points until one falls in its area; that point is kept to light it again after a hover. ]]
-local GRID = 24
-local function Light(g)
+	the next call. The focus frame only holds the tracked quest, so it is asked about points until one
+	falls in its area: first the quest's own place on the map (usually inside it), then rings around it,
+	then a grid. Just after DrawBlob nothing is hit yet (iteration 10: the tracked line stayed blue), so
+	an unlit focus frame is tried again on the next ticks (TryLight, from the hover frame below). ]]
+local blobTrackedPos = {}   --{ [mapID] = { x, y } of the tracked quest on that map }
+local GRID = 20
+local function Hit(g, x, y)
+	local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
+	if ok and a and a ~= 0 then g.__lx, g.__ly = x, y return true end
+end
+local function Light(g, mapID)
 	if not g or type(g.UpdateMouseOverTooltip) ~= "function" then return end
-	if g.__lx then
-		local ok, a = pcall(g.UpdateMouseOverTooltip, g, g.__lx, g.__ly)
-		if ok and a and a ~= 0 then return end
-	end
+	if g.__lx and Hit(g, g.__lx, g.__ly) then return true end
 	g.__lx, g.__ly = nil, nil
+	local p = blobTrackedPos[mapID]
+	if p then
+		if Hit(g, p[1], p[2]) then return true end
+		for r = 1, 8 do
+			local d = r * 0.01
+			for k = 0, 11 do
+				local a = k * math.pi / 6
+				if Hit(g, p[1] + d * math.cos(a), p[2] + d * math.sin(a)) then return true end
+			end
+		end
+	end
 	for i = 1, GRID - 1 do
 		for j = 1, GRID - 1 do
-			local x, y = i / GRID, j / GRID
-			local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
-			if ok and a and a ~= 0 then g.__lx, g.__ly = x, y return end
+			if Hit(g, i / GRID, j / GRID) then return true end
+		end
+	end
+end
+local function TryLight()
+	for mapID, f in pairs(blobs) do
+		local g = f.__focus
+		if g and g:IsShown() and blobTracked[mapID] and not g.__lx and (g.__tries or 0) < 20 then
+			g.__tries = (g.__tries or 0) + 1
+			Light(g, mapID)
 		end
 	end
 end
@@ -373,6 +395,7 @@ addonTab.QuestsHide = HideAll
 local function Read(maps, inst)
 	wipe(quests)
 	local seen, perMap = {}, {}
+	wipe(blobTrackedPos)
 	local tracked = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
 	for _, mapID in ipairs(maps) do
 		local ok, list = pcall(C_QuestLog.GetQuestsOnMap, mapID)
@@ -386,6 +409,7 @@ local function Read(maps, inst)
 					seen[key] = true
 					local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id) or false
 					quests[#quests + 1] = { id = id, mapID = mapID, wx = wx, wy = wy, complete = complete, tracked = id == tracked }
+					if id == tracked and mapID == maps[1] then blobTrackedPos[mapID] = { q.x, q.y } end
 					--[[ areas: only for the zone the player is in (maps[1]). On this client a QuestPOIFrame draws
 						the player's own zone whatever map it is given: the frames of the neighbouring zones drew
 						the same areas again, shrunk into their own rectangles (iteration 5, "ghosts"). ]]
@@ -501,8 +525,8 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 								for _, id in ipairs(ids) do if id ~= focusID then pcall(g.DrawBlob, g, id, true) end end
 							elseif focusID then
 								pcall(g.DrawBlob, g, focusID, true)
-								g.__lx = nil
-								Light(g)
+								g.__lx, g.__tries = nil, 0
+								Light(g, mapID)
 							end
 						end
 					end
@@ -558,7 +582,7 @@ local function HideHover()
 		lit = nil
 		for mapID, f in pairs(blobs) do
 			if type(f.UpdateMouseOverTooltip) == "function" then pcall(f.UpdateMouseOverTooltip, f, -1, -1) end
-			if f.__focus and blobTracked[mapID] then Light(f.__focus) end
+			if f.__focus and blobTracked[mapID] then Light(f.__focus, mapID) end
 		end
 	end
 end
@@ -591,7 +615,7 @@ local function Hover()
 				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
 				lit = true
 				local id = ok and QuestFromHit(a, ids)
-				if f.__lx and not id then Light(f) end
+				if f.__lx and not id then Light(f, mapID) end
 				if id then
 					found = id
 					if type(n) == "number" and n > 0 and type(f.GetTooltipIndex) == "function" then
@@ -621,6 +645,7 @@ hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
 	if hoverWait > 0 then return end
 	hoverWait = HOVER_EVERY
+	pcall(TryLight)
 	local ok = pcall(Hover)
 	if not ok then HideHover() end
 end)
