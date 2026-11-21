@@ -447,7 +447,7 @@ function addonTab.PinsDebug()
 	local idx = mt and type(mt.__index) == "table" and mt.__index
 	if idx then
 		local names = {}
-		for k in pairs(idx) do if type(k) == "string" and (k:find("Blob") or k:find("Border") or k:find("Fill") or k:find("Draw") or k:find("Color") or k:find("Map")) then names[#names + 1] = k end end
+		for k in pairs(idx) do if type(k) == "string" and (k:find("Blob") or k:find("Border") or k:find("Fill") or k:find("Draw") or k:find("Color") or k:find("Map") or k:find("Tooltip") or k:find("Mouse")) then names[#names + 1] = k end end
 		table.sort(names)
 		P("QuestPOIFrame: %s", table.concat(names, " "))
 	end

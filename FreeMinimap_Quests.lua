@@ -122,25 +122,33 @@ local function ZonesNear(mapID, inst, pw, pn, halfW, halfH)
 end
 
 --{ ===================== icons ===================== }--
+--[[ a quest's title and objectives in the tooltip (only = { [objective index] = true }: just those,
+	as the game's own area tooltip shows the objectives of the area under the cursor) ]]
+local function QuestLines(id, complete, only)
+	local title = C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(id)
+	GameTooltip:SetText(title or "?", 1, 0.82, 0)
+	if complete then
+		GameTooltip:AddLine(_G.QUEST_WATCH_QUEST_READY or "Ready for turn-in", 0.5, 0.95, 0.4)
+		return
+	end
+	local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
+	local count, line = _G.GetNumQuestLeaderBoards, _G.GetQuestLogLeaderBoard
+	if index and count and line then
+		for i = 1, count(index) or 0 do
+			local text, _, finished = line(i, index)
+			if text and (only and only[i] or (not only and not finished)) then
+				GameTooltip:AddLine((_G.QUEST_DASH or "- ") .. text, 1, 1, 1, true)
+			end
+		end
+	end
+end
+
 local function Enter(self)
 	local q = self.quest
 	if not q then return end
 	if addonTab.ButtonHoverEnter then addonTab.ButtonHoverEnter() end
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-	local title = C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(q.id)
-	GameTooltip:SetText(title or "?", 1, 0.82, 0)
-	if q.complete then
-		GameTooltip:AddLine(_G.QUEST_WATCH_QUEST_READY or "Ready for turn-in", 0.5, 0.95, 0.4)
-	else
-		local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(q.id)
-		local count, line = _G.GetNumQuestLeaderBoards, _G.GetQuestLogLeaderBoard
-		if index and count and line then
-			for i = 1, count(index) or 0 do
-				local text, _, finished = line(i, index)
-				if text and not finished then GameTooltip:AddLine((_G.QUEST_DASH or "- ") .. text, 1, 1, 1, true) end
-			end
-		end
-	end
+	QuestLines(q.id, q.complete)
 	GameTooltip:AddLine("Click: track this quest", 0.6, 0.6, 0.6)
 	GameTooltip:Show()
 end
@@ -389,3 +397,88 @@ end
 ev:SetScript("OnEvent", function() dirty = true end)
 
 R:HookScript("OnHide", function() if #quests > 0 or next(blobQuests) then HideAll() end end)
+
+--[[ ===================== tooltip over the areas =====================
+	On the real minimap, hovering inside a quest's area shows its objectives; the areas drawn on the
+	terrain tiles showed nothing (Thibault, 21/11). The area frame can tell which quest is under a point
+	of its map, as the world map's quest areas do: UpdateMouseOverTooltip(x, y) with x, y the cursor on
+	the frame (0..1 from its top left) returns the quest (log index on older clients, quest ID on newer
+	ones) and how many of its objectives are there, read with GetTooltipIndex(i).
+	Only while the cursor is over the region map itself (not over an icon, a button or the real minimap,
+	which shows its own tooltip). ]]
+local HOVER_EVERY = 0.05
+local hover = CreateFrame("Frame", nil, R)
+local hoverWait, hoverShown = 0, nil
+
+local function QuestFromHit(a, ids)
+	if not a then return end
+	for _, id in ipairs(ids) do if id == a then return a end end                  --{ a quest ID }--
+	if C_QuestLog.GetQuestIDForLogIndex then                                        --{ a log index }--
+		local ok, id = pcall(C_QuestLog.GetQuestIDForLogIndex, a)
+		if ok and id and id ~= 0 then return id end
+	end
+	if C_QuestLog.GetInfo then
+		local ok, info = pcall(C_QuestLog.GetInfo, a)
+		if ok and type(info) == "table" and info.questID then return info.questID end
+	end
+end
+
+local function HideHover()
+	if hoverShown and GameTooltip:IsOwned(R) then GameTooltip:Hide() end
+	hoverShown = nil
+end
+
+local function OverMapOnly()
+	if not R:IsMouseOver() then return false end
+	if Minimap:IsShown() and (Minimap:GetAlpha() or 1) > 0 and Minimap:IsMouseOver() then return false end
+	local foci = GetMouseFoci and GetMouseFoci() or { GetMouseFocus and GetMouseFocus() }
+	local f = foci and foci[1]
+	return f == nil or f == R
+end
+
+local function Hover()
+	if not next(blobQuests) or not OverMapOnly() then HideHover() return end
+	local cx, cy = GetCursorPosition()
+	local found, objectives
+	for mapID, f in pairs(blobs) do
+		local ids = blobQuests[mapID]
+		if ids and f:IsShown() and type(f.UpdateMouseOverTooltip) == "function" then
+			local s = f:GetEffectiveScale()
+			local l, b, w, h = f:GetRect()
+			local x, y = cx / s, cy / s
+			if l and w > 0 and h > 0 and x >= l and x <= l + w and y >= b and y <= b + h then
+				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
+				local id = ok and QuestFromHit(a, ids)
+				if id then
+					found = id
+					if type(n) == "number" and n > 0 and type(f.GetTooltipIndex) == "function" then
+						objectives = {}
+						for i = 1, n do
+							local okI, k = pcall(f.GetTooltipIndex, f, i)
+							if okI and type(k) == "number" then objectives[k] = true end
+						end
+						if not next(objectives) then objectives = nil end
+					end
+					break
+				end
+			end
+		end
+	end
+	if not found then HideHover() return end
+	local key = found .. ":" .. (objectives and table.concat((function() local t = {} for k in pairs(objectives) do t[#t + 1] = k end table.sort(t) return t end)(), ",") or "*")
+	if hoverShown == key and GameTooltip:IsOwned(R) then return end
+	hoverShown = key
+	GameTooltip:SetOwner(R, "ANCHOR_CURSOR_RIGHT", 5, 2)
+	local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(found) or false
+	QuestLines(found, complete, objectives)
+	GameTooltip:Show()
+end
+
+hover:SetScript("OnUpdate", function(_, elapsed)
+	hoverWait = hoverWait - elapsed
+	if hoverWait > 0 then return end
+	hoverWait = HOVER_EVERY
+	local ok = pcall(Hover)
+	if not ok then HideHover() end
+end)
+R:HookScript("OnLeave", function() HideHover() end)
