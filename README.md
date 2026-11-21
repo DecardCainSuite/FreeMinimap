@@ -1,7 +1,7 @@
 <p align="center"><img src="curseforge/images/FreeMinimap-logo-400.png" width="120" alt="Free Minimap logo"></p>
 <h1 align="center">Free Minimap</h1>
 <p align="center">A rectangular minimap of any size, with a region map drawn from the game's own terrain tiles around you.</p>
-<p align="center"><a href="https://www.curseforge.com/wow/addons/freeminimap"><b>Download on CurseForge</b></a> · version <b>1.7.0</b> · WoW Forever (1.60.1) · <code>/fmm</code></p>
+<p align="center"><a href="https://www.curseforge.com/wow/addons/freeminimap"><b>Download on CurseForge</b></a> · version <b>1.7.1</b> · WoW Forever (1.60.1) · <code>/fmm</code></p>
 
 ![Free Minimap](curseforge/images/fmm_1_banner.png)
 
