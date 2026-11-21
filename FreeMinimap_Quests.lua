@@ -240,6 +240,22 @@ end
 	No fill: Thibault wants only the outline. ]]
 local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0.25, alpha = 200 }
 
+--[[ Trial (21/11): our own edge textures, whose cross-section copies the real minimap's line as measured
+	on Thibault's screenshot (pale blue core #9ECCFC with a sharp inner side, a blue-grey glow #708BC3 on
+	the outer side only). How the frame lays a border texture along the edge is unknown, so there are four:
+	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
+	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
+local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
+local EDGES = { "edge_u", "edge_u_rev", "edge_v", "edge_v_rev" }
+local function CurrentLook()
+	local pc = addonTab.pc
+	local style = pc and tonumber(pc.edgeStyle) or 0
+	if EDGES[style] then
+		return { texture = MEDIA .. EDGES[style], scalar = tonumber(pc.edgeScalar) or 0.5, alpha = 255 }
+	end
+	return LINE
+end
+
 local function MakeBlobFrame(mapID, look, level)
 	local ok, f = pcall(CreateFrame, "QuestPOIFrame", nil, areas)
 	if not ok or not f or type(f.DrawBlob) ~= "function" then return end
@@ -258,7 +274,7 @@ end
 --{ a zone's areas (f.__halo: a second frame under it, none for now) }--
 local function NewBlob(mapID)
 	if blobsWork == false then return end
-	local f = MakeBlobFrame(mapID, LINE, areas:GetFrameLevel())
+	local f = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
 	return f
@@ -272,6 +288,12 @@ local function Retire(mapID)
 		if f.__halo then f.__halo:Hide(); f.__halo:ClearAllPoints() end
 		blobs[mapID] = nil
 	end
+end
+
+--{ a new look for the areas: their frames are made again (the look is set when a frame is made) }--
+function addonTab.QuestsRestyle()
+	for mapID in pairs(blobs) do Retire(mapID) end
+	dirty = true
 end
 
 local function DrawBlobs(perMap)

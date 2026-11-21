@@ -868,6 +868,15 @@ SlashCmdList["FREEMINIMAP"] = function(msg)
         if ns.PinsDebug then ns.PinsDebug() end
         return
     end
+    --{ /fmm edge <0-4> [width]: trial looks for the quest areas' outline (0 = the world map's edge) }--
+    local style, width = msg:match("^edge%s*(%d*)%s*([%d%.]*)")
+    if style then
+        if style ~= "" then pc.edgeStyle = tonumber(style) end
+        if width ~= "" then pc.edgeScalar = tonumber(width) end
+        if ns.QuestsRestyle then ns.QuestsRestyle() end
+        print(string.format("|cffff8a3dFree Minimap|r quest outline: style %d, width %.2f", tonumber(pc.edgeStyle) or 0, tonumber(pc.edgeScalar) or 0.5))
+        return
+    end
     if msg == "region" or msg == "r" then
         ns.SetRegion(not pc.regionEnabled)
     elseif msg:sub(1, 4) == "axes" then
