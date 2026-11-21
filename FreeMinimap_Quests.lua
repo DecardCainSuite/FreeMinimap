@@ -282,7 +282,36 @@ local FAINT = 80   --{ border alpha of the untracked areas }
 	x0.77, blue x1): style 7's pale #A5D1FF becomes the blue #46A0FF. On the real minimap the other
 	quests have that blue, faint, and the tracked one the pale line. So: the faint frame is asked about a
 	point off its map after each drawing (tinted), the focus frame is never asked (pale), and the cursor
-	is tested against a third, invisible frame (f.__probe) holding every area. ]]
+	is tested against a third, invisible frame (f.__probe) holding every area.
+	Iteration 13: the tracked line was tinted all the same. The state is shared by every quest-area
+	frame: the last point asked lights the quest under it and tints the others, everywhere. So after
+	every question (drawing, cursor), a point inside the tracked area is asked last (Relight): the
+	tracked quest stays lit (pale), the others tinted. The point is searched once on the focus frame
+	(it holds only the tracked quest): the quest's own place first, rings around it, then a grid. ]]
+local trackedPos = {}   --{ [mapID] = { x, y } the tracked quest's place on that map }
+local GRID = 20
+local function Ask(g, x, y)
+	local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
+	return ok and a and a ~= 0
+end
+local function FindPoint(g, mapID)
+	local p = trackedPos[mapID]
+	if p then
+		if Ask(g, p[1], p[2]) then return p[1], p[2] end
+		for r = 1, 8 do
+			local d = r * 0.01
+			for k = 0, 11 do
+				local x, y = p[1] + d * math.cos(k * math.pi / 6), p[2] + d * math.sin(k * math.pi / 6)
+				if Ask(g, x, y) then return x, y end
+			end
+		end
+	end
+	for i = 1, GRID - 1 do
+		for j = 1, GRID - 1 do
+			if Ask(g, i / GRID, j / GRID) then return i / GRID, j / GRID end
+		end
+	end
+end
 local function FaintLook()
 	local l = CurrentLook()
 	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
@@ -366,6 +395,7 @@ addonTab.QuestsHide = HideAll
 local function Read(maps, inst)
 	wipe(quests)
 	local seen, perMap = {}, {}
+	wipe(trackedPos)
 	local tracked = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
 	for _, mapID in ipairs(maps) do
 		local ok, list = pcall(C_QuestLog.GetQuestsOnMap, mapID)
@@ -379,6 +409,7 @@ local function Read(maps, inst)
 					seen[key] = true
 					local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id) or false
 					quests[#quests + 1] = { id = id, mapID = mapID, wx = wx, wy = wy, complete = complete, tracked = id == tracked }
+					if id == tracked then trackedPos[mapID] = { q.x, q.y } end
 					--[[ areas: only for the zone the player is in (maps[1]). On this client a QuestPOIFrame draws
 						the player's own zone whatever map it is given: the frames of the neighbouring zones drew
 						the same areas again, shrunk into their own rectangles (iteration 5, "ghosts"). ]]
@@ -497,9 +528,11 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 								for _, id in ipairs(ids) do pcall(g.DrawBlob, g, id, true) end
 							else
 								pcall(g.DrawBlob, g, focusID, true)
+								g.__tries = 0
 							end
 						end
 					end
+					if addonTab.QuestsRelight then pcall(addonTab.QuestsRelight) end
 				end
 			end
 		else
@@ -593,11 +626,26 @@ local function Hover()
 	GameTooltip:Show()
 end
 
+local function Relight()
+	for mapID, f in pairs(blobs) do
+		local g = f.__focus
+		if g and g:IsShown() and blobTracked[mapID] and type(g.UpdateMouseOverTooltip) == "function" then
+			if g.__lx and not Ask(g, g.__lx, g.__ly) then g.__lx = nil end
+			if not g.__lx and (g.__tries or 0) < 20 then
+				g.__tries = (g.__tries or 0) + 1
+				g.__lx, g.__ly = FindPoint(g, mapID)
+			end
+		end
+	end
+end
+addonTab.QuestsRelight = Relight
+
 hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
 	if hoverWait > 0 then return end
 	hoverWait = HOVER_EVERY
 	local ok = pcall(Hover)
 	if not ok then HideHover() end
+	pcall(Relight)
 end)
 R:HookScript("OnLeave", function() HideHover() end)
