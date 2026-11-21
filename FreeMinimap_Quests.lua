@@ -277,16 +277,12 @@ end
 	faint line, about a third of the blue. So each zone has two frames: f (the other quests, faint) and
 	f.__focus over it (the tracked quest, brighter texture). ]]
 local FAINT = 80   --{ border alpha of the untracked areas }
---[[ Lighting the tracked area by asking the frame about a point of it (iteration 10-11) did not work
-	without the real cursor: the frame tints every border texture (red x0.42, green x0.77, blue x1 against
-	Thibault's captures), so the tracked line came out #46A0FF instead of the native #A5D1FF. Its texture
-	is therefore style 7 divided by that tint (fmm_edge9). Red is capped at 255, so the core can reach
-	about #6BC4FF at best, not the native red. ]]
-local function FocusLook()
-	local l = CurrentLook()
-	if l.texture == MEDIA .. "fmm_edge7" then return { texture = MEDIA .. "fmm_edge9", scalar = l.scalar, alpha = l.alpha } end
-	return l
-end
+--[[ (21/11, iterations 10-12) The frame shows a border texture in its own colours until it is asked
+	UpdateMouseOverTooltip about a point outside its areas; from then on it tints it (red x0.42, green
+	x0.77, blue x1): style 7's pale #A5D1FF becomes the blue #46A0FF. On the real minimap the other
+	quests have that blue, faint, and the tracked one the pale line. So: the faint frame is asked about a
+	point off its map after each drawing (tinted), the focus frame is never asked (pale), and the cursor
+	is tested against a third, invisible frame (f.__probe) holding every area. ]]
 local function FaintLook()
 	local l = CurrentLook()
 	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
@@ -307,13 +303,15 @@ local function MakeBlobFrame(mapID, look, level)
 	return f
 end
 
---{ a zone's areas: f for the other quests, f.__focus over it for the tracked one }--
+--{ a zone's areas: f for the other quests, f.__focus over it for the tracked one, f.__probe for the cursor }--
 local function NewBlob(mapID)
 	if blobsWork == false then return end
 	local f = MakeBlobFrame(mapID, FaintLook(), areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
-	f.__focus = MakeBlobFrame(mapID, FocusLook(), areas:GetFrameLevel() + 1)
+	f.__focus = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel() + 1)
+	f.__probe = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel())
+	if f.__probe then f.__probe:SetAlpha(0); pcall(f.__probe.SetBorderAlpha, f.__probe, 0) end
 	return f
 end
 
@@ -323,6 +321,7 @@ local function Retire(mapID)
 		f:Hide()
 		f:ClearAllPoints()
 		if f.__focus then f.__focus:Hide(); f.__focus:ClearAllPoints() end
+		if f.__probe then f.__probe:Hide(); f.__probe:ClearAllPoints() end
 		blobs[mapID] = nil
 	end
 end
@@ -352,7 +351,11 @@ end
 local function HideAll()
 	for _, b in ipairs(pool) do b:Hide(); b.quest = nil end
 	--{ the area frames are only hidden: their drawing stays valid for when the map shows again }--
-	for _, f in pairs(blobs) do f:Hide(); if f.__focus then f.__focus:Hide() end end
+	for _, f in pairs(blobs) do
+		f:Hide()
+		if f.__focus then f.__focus:Hide() end
+		if f.__probe then f.__probe:Hide() end
+	end
 	wipe(quests)
 	lastKey = nil
 	dirty = true
@@ -478,7 +481,7 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 					f.__dirty, f.__drawn = false, now
 					local focusID = blobTracked[mapID]
 					if f.__focus and not focusID then f.__focus:Hide() end
-					for _, g in ipairs({ f, (focusID and f.__focus) or false }) do
+					for _, g in ipairs({ f, (focusID and f.__focus) or false, f.__probe or false }) do
 						if g then
 							g:SetScale(1)
 							g:ClearAllPoints()
@@ -489,7 +492,10 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 							if g.DrawNone then pcall(g.DrawNone, g) end
 							if g == f then
 								for _, id in ipairs(ids) do if id ~= focusID then pcall(g.DrawBlob, g, id, true) end end
-							elseif focusID then
+								if type(g.UpdateMouseOverTooltip) == "function" then pcall(g.UpdateMouseOverTooltip, g, -1, -1) end
+							elseif g == f.__probe then
+								for _, id in ipairs(ids) do pcall(g.DrawBlob, g, id, true) end
+							else
 								pcall(g.DrawBlob, g, focusID, true)
 							end
 						end
@@ -535,21 +541,9 @@ local function QuestFromHit(a, ids)
 	end
 end
 
---[[ (21/11) UpdateMouseOverTooltip also lights the area under the cursor: its outline turns from the
-	usual blue (#45A0FF) to pale (#A5D1FF), as on the real minimap. The light stayed on after the cursor
-	left, so when the cursor leaves the areas, each frame is asked about a point off its map. ]]
-local lit
 local function HideHover()
 	if hoverShown and GameTooltip:IsOwned(R) then GameTooltip:Hide() end
 	hoverShown = nil
-	if lit then
-		lit = nil
-		for mapID, f in pairs(blobs) do
-			if type(f.UpdateMouseOverTooltip) == "function" then pcall(f.UpdateMouseOverTooltip, f, -1, -1) end
-			local g = f.__focus
-			if g and type(g.UpdateMouseOverTooltip) == "function" then pcall(g.UpdateMouseOverTooltip, g, -1, -1) end
-		end
-	end
 end
 
 local function OverMapOnly()
@@ -564,13 +558,8 @@ local function Hover()
 	if not next(blobQuests) or not OverMapOnly() then HideHover() return end
 	local cx, cy = GetCursorPosition()
 	local found, objectives
-	local frames = {}
 	for mapID, f0 in pairs(blobs) do
-		if f0.__focus and blobTracked[mapID] then frames[#frames + 1] = { mapID, f0.__focus } end
-		frames[#frames + 1] = { mapID, f0 }
-	end
-	for _, e in ipairs(frames) do
-		local mapID, f = e[1], e[2]
+		local f = f0.__probe or f0
 		local ids = blobQuests[mapID]
 		if ids and f:IsShown() and type(f.UpdateMouseOverTooltip) == "function" then
 			local s = f:GetEffectiveScale()
@@ -578,7 +567,6 @@ local function Hover()
 			local x, y = cx / s, cy / s
 			if l and w > 0 and h > 0 and x >= l and x <= l + w and y >= b and y <= b + h then
 				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
-				lit = true
 				local id = ok and QuestFromHit(a, ids)
 				if id then
 					found = id
