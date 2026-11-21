@@ -878,7 +878,7 @@ SlashCmdList["FREEMINIMAP"] = function(msg)
         if style ~= "" then pc.edgeStyle = tonumber(style) end
         if width ~= "" then pc.edgeScalar = tonumber(width) end
         if ns.QuestsRestyle then ns.QuestsRestyle() end
-        print(string.format("|cffff8a3dFree Minimap|r quest outline: style %d, width %.2f", tonumber(pc.edgeStyle) or 0, tonumber(pc.edgeScalar) or 0.5))
+        print(string.format("|cffff8a3dFree Minimap|r quest outline: style %d, width %.2f", tonumber(pc.edgeStyle) or 7, tonumber(pc.edgeScalar) or 0.35))
         return
     end
     if msg == "region" or msg == "r" then

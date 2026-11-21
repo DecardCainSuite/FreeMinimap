@@ -265,9 +265,9 @@ for i, name in ipairs(EDGES) do
 end
 local function CurrentLook()
 	local pc = addonTab.pc
-	local style = pc and tonumber(pc.edgeStyle) or 0
+	local style = pc and tonumber(pc.edgeStyle) or 7
 	if EDGES[style] then
-		return { texture = MEDIA .. EDGES[style], scalar = tonumber(pc.edgeScalar) or 0.5, alpha = 255 }
+		return { texture = MEDIA .. EDGES[style], scalar = tonumber(pc and pc.edgeScalar) or 0.35, alpha = 255 }
 	end
 	return LINE
 end
@@ -500,9 +500,19 @@ local function QuestFromHit(a, ids)
 	end
 end
 
+--[[ (21/11) UpdateMouseOverTooltip also lights the area under the cursor: its outline turns from the
+	usual blue (#45A0FF) to pale (#A5D1FF), as on the real minimap. The light stayed on after the cursor
+	left, so when the cursor leaves the areas, each frame is asked about a point off its map. ]]
+local lit
 local function HideHover()
 	if hoverShown and GameTooltip:IsOwned(R) then GameTooltip:Hide() end
 	hoverShown = nil
+	if lit then
+		lit = nil
+		for _, f in pairs(blobs) do
+			if type(f.UpdateMouseOverTooltip) == "function" then pcall(f.UpdateMouseOverTooltip, f, -1, -1) end
+		end
+	end
 end
 
 local function OverMapOnly()
@@ -525,6 +535,7 @@ local function Hover()
 			local x, y = cx / s, cy / s
 			if l and w > 0 and h > 0 and x >= l and x <= l + w and y >= b and y <= b + h then
 				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
+				lit = true
 				local id = ok and QuestFromHit(a, ids)
 				if id then
 					found = id
