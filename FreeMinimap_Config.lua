@@ -868,6 +868,10 @@ SlashCmdList["FREEMINIMAP"] = function(msg)
         if ns.TextureTest then ns.TextureTest() end
         return
     end
+    if msg == "qdiag" then
+        if ns.QuestsDiag then ns.QuestsDiag() end
+        return
+    end
     if msg == "pins" then
         if ns.PinsDebug then ns.PinsDebug() end
         return

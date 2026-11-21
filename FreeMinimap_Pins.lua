@@ -536,7 +536,7 @@ local TEST_FILES = {
 	"fmm_edge1", "test_edge_cp", "tt03_edge_zero", "tt12_edge_zero_cp", "tt04_edge_rle", "tt05_edge_topleft",
 	"tt06_edge_alpha1", "tt08_ligne", "tt09_edge128", "tt10_edge_opaque", "tt11_grad", "tt13_grad_cp",
 	"fmm_edge2", "fmm_edge3", "fmm_edge4",
-	"fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9",
+	"fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11",
 }
 local testFrame
 function addonTab.TextureTest()

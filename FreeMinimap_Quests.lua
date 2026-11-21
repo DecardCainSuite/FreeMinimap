@@ -247,7 +247,7 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
@@ -639,6 +639,45 @@ local function Relight()
 	end
 end
 addonTab.QuestsRelight = Relight
+
+--{ TEMPORARY (21/11): /fmm qdiag, what the area frames hold and what the tracked-area search found }--
+function addonTab.QuestsDiag()
+	local P = function(...) print("|cffff8a3dFMM qdiag|r", ...) end
+	local l = CurrentLook()
+	P("style", tostring(addonTab.pc and addonTab.pc.edgeStyle), "texture", tostring(l.texture), "scalar", tostring(l.scalar))
+	local any
+	for mapID, f in pairs(blobs) do
+		any = true
+		local g, pr = f.__focus, f.__probe
+		local ids = blobQuests[mapID] or {}
+		P("map", mapID, "quests", table.concat(ids, ","), "tracked", tostring(blobTracked[mapID]),
+			"tracked pos", trackedPos[mapID] and string.format("%.3f,%.3f", trackedPos[mapID][1], trackedPos[mapID][2]) or "none")
+		P(" faint shown", tostring(f:IsShown()), "focus shown", tostring(g and g:IsShown()), "probe shown", tostring(pr and pr:IsShown()))
+		if g then
+			P(" focus point", g.__lx and string.format("%.3f,%.3f", g.__lx, g.__ly) or "NOT FOUND", "tries", tostring(g.__tries))
+			if trackedPos[mapID] then
+				local ok, a, n = pcall(g.UpdateMouseOverTooltip, g, trackedPos[mapID][1], trackedPos[mapID][2])
+				P(" focus asked at quest pos ->", tostring(ok), tostring(a), tostring(n))
+			end
+			local hits = 0
+			for i = 1, 19 do for j = 1, 19 do
+				local ok, a = pcall(g.UpdateMouseOverTooltip, g, i / 20, j / 20)
+				if ok and a and a ~= 0 then hits = hits + 1 end
+			end end
+			P(" focus grid hits (of 361)", hits)
+		end
+		if pr then
+			local hits = 0
+			for i = 1, 19 do for j = 1, 19 do
+				local ok, a = pcall(pr.UpdateMouseOverTooltip, pr, i / 20, j / 20)
+				if ok and a and a ~= 0 then hits = hits + 1 end
+			end end
+			P(" probe grid hits (of 361)", hits)
+		end
+		if g then pcall(Relight) end
+	end
+	if not any then P("no area frame") end
+end
 
 hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
