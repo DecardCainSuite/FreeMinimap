@@ -564,6 +564,39 @@ local function Hover()
 	GameTooltip:Show()
 end
 
+--{ TEMPORARY (21/11): /fmm hdiag, typed with the cursor over an area on the tiles: every step of Hover }--
+function addonTab.HoverDiag()
+	local P = function(...) print("|cffff8a3dFMM hdiag|r", ...) end
+	local foci = GetMouseFoci and GetMouseFoci() or { GetMouseFocus and GetMouseFocus() }
+	local f1 = foci and foci[1]
+	P("R over", tostring(R:IsMouseOver()), "Minimap over", tostring(Minimap:IsShown() and Minimap:IsMouseOver()),
+		"Minimap alpha", tostring(Minimap:GetAlpha()), "focus[1]", f1 and (f1.GetName and f1:GetName() or tostring(f1)) or "nil",
+		"OverMapOnly", tostring(OverMapOnly()), "quests", tostring(next(blobQuests) ~= nil))
+	local cx, cy = GetCursorPosition()
+	for mapID, f0 in pairs(blobs) do
+		P("map", mapID, "ids", table.concat(blobQuests[mapID] or {}, ","), "tracked", tostring(blobTracked[mapID]))
+		for _, e in ipairs({ { "faint", f0 }, { "focus", f0.__focus }, { "probe", f0.__probe } }) do
+			local name, f = e[1], e[2]
+			if not f then P(" ", name, "none") else
+				local s = f:GetEffectiveScale()
+				local l, b, w, h = f:GetRect()
+				local line = { " ", name, "shown", tostring(f:IsShown()), "alpha", tostring(f:GetAlpha()), "scale", string.format("%.3f", s),
+					"rect", l and string.format("%.0f,%.0f %.0fx%.0f", l, b, w, h) or "nil" }
+				if l and w > 0 and h > 0 then
+					local x, y = cx / s, cy / s
+					local nx, ny = (x - l) / w, (b + h - y) / h
+					local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, nx, ny)
+					local id = ok and QuestFromHit(a, blobQuests[mapID] or {})
+					for _, v in ipairs({ "cursor", string.format("%.3f,%.3f", nx, ny), "->", tostring(ok), tostring(a), tostring(n), "quest", tostring(id) }) do line[#line + 1] = v end
+				end
+				P(unpack(line))
+			end
+		end
+	end
+	local ok, err = pcall(Hover)
+	P("Hover()", tostring(ok), tostring(err), "shown", tostring(hoverShown))
+end
+
 hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
 	if hoverWait > 0 then return end
