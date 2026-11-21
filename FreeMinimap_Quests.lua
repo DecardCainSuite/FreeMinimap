@@ -247,9 +247,9 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12", "fmm_edge13", "fmm_edge14", "fmm_edge15" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12", "fmm_edge13", "fmm_edge14", "fmm_edge15", "fmm_edge16" }
 --{ the tracked quest's texture for a style (saturation halved, see FocusLook) }--
-local FOCUS = { fmm_edge7 = "fmm_edge12", fmm_edge13 = "fmm_edge13s", fmm_edge14 = "fmm_edge14s" }
+local FOCUS = { fmm_edge7 = "fmm_edge12", fmm_edge13 = "fmm_edge13s", fmm_edge14 = "fmm_edge14s", fmm_edge16 = "fmm_edge16s" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
