@@ -247,7 +247,7 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
@@ -273,10 +273,20 @@ local function CurrentLook()
 	return LINE
 end
 --[[ (21/11, Thibault's captures) On the real minimap only the tracked quest's area has the bright line:
-	pale core #A5D1FF with its glow (the frame's "lit" state, see Light below). The other areas get a
+	pale core #A5D1FF with its glow. The other areas get a
 	faint line, about a third of the blue. So each zone has two frames: f (the other quests, faint) and
-	f.__focus over it (the tracked quest, lit). ]]
+	f.__focus over it (the tracked quest, brighter texture). ]]
 local FAINT = 80   --{ border alpha of the untracked areas }
+--[[ Lighting the tracked area by asking the frame about a point of it (iteration 10-11) did not work
+	without the real cursor: the frame tints every border texture (red x0.42, green x0.77, blue x1 against
+	Thibault's captures), so the tracked line came out #46A0FF instead of the native #A5D1FF. Its texture
+	is therefore style 7 divided by that tint (fmm_edge9). Red is capped at 255, so the core can reach
+	about #6BC4FF at best, not the native red. ]]
+local function FocusLook()
+	local l = CurrentLook()
+	if l.texture == MEDIA .. "fmm_edge7" then return { texture = MEDIA .. "fmm_edge9", scalar = l.scalar, alpha = l.alpha } end
+	return l
+end
 local function FaintLook()
 	local l = CurrentLook()
 	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
@@ -303,50 +313,8 @@ local function NewBlob(mapID)
 	local f = MakeBlobFrame(mapID, FaintLook(), areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
-	f.__focus = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel() + 1)
+	f.__focus = MakeBlobFrame(mapID, FocusLook(), areas:GetFrameLevel() + 1)
 	return f
-end
-
---[[ UpdateMouseOverTooltip(x, y) lights the area under the point (pale line) and the light stays until
-	the next call. The focus frame only holds the tracked quest, so it is asked about points until one
-	falls in its area: first the quest's own place on the map (usually inside it), then rings around it,
-	then a grid. Just after DrawBlob nothing is hit yet (iteration 10: the tracked line stayed blue), so
-	an unlit focus frame is tried again on the next ticks (TryLight, from the hover frame below). ]]
-local blobTrackedPos = {}   --{ [mapID] = { x, y } of the tracked quest on that map }
-local GRID = 20
-local function Hit(g, x, y)
-	local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
-	if ok and a and a ~= 0 then g.__lx, g.__ly = x, y return true end
-end
-local function Light(g, mapID)
-	if not g or type(g.UpdateMouseOverTooltip) ~= "function" then return end
-	if g.__lx and Hit(g, g.__lx, g.__ly) then return true end
-	g.__lx, g.__ly = nil, nil
-	local p = blobTrackedPos[mapID]
-	if p then
-		if Hit(g, p[1], p[2]) then return true end
-		for r = 1, 8 do
-			local d = r * 0.01
-			for k = 0, 11 do
-				local a = k * math.pi / 6
-				if Hit(g, p[1] + d * math.cos(a), p[2] + d * math.sin(a)) then return true end
-			end
-		end
-	end
-	for i = 1, GRID - 1 do
-		for j = 1, GRID - 1 do
-			if Hit(g, i / GRID, j / GRID) then return true end
-		end
-	end
-end
-local function TryLight()
-	for mapID, f in pairs(blobs) do
-		local g = f.__focus
-		if g and g:IsShown() and blobTracked[mapID] and not g.__lx and (g.__tries or 0) < 20 then
-			g.__tries = (g.__tries or 0) + 1
-			Light(g, mapID)
-		end
-	end
 end
 
 local function Retire(mapID)
@@ -395,7 +363,6 @@ addonTab.QuestsHide = HideAll
 local function Read(maps, inst)
 	wipe(quests)
 	local seen, perMap = {}, {}
-	wipe(blobTrackedPos)
 	local tracked = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
 	for _, mapID in ipairs(maps) do
 		local ok, list = pcall(C_QuestLog.GetQuestsOnMap, mapID)
@@ -409,7 +376,6 @@ local function Read(maps, inst)
 					seen[key] = true
 					local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id) or false
 					quests[#quests + 1] = { id = id, mapID = mapID, wx = wx, wy = wy, complete = complete, tracked = id == tracked }
-					if id == tracked and mapID == maps[1] then blobTrackedPos[mapID] = { q.x, q.y } end
 					--[[ areas: only for the zone the player is in (maps[1]). On this client a QuestPOIFrame draws
 						the player's own zone whatever map it is given: the frames of the neighbouring zones drew
 						the same areas again, shrunk into their own rectangles (iteration 5, "ghosts"). ]]
@@ -525,8 +491,6 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 								for _, id in ipairs(ids) do if id ~= focusID then pcall(g.DrawBlob, g, id, true) end end
 							elseif focusID then
 								pcall(g.DrawBlob, g, focusID, true)
-								g.__lx, g.__tries = nil, 0
-								Light(g, mapID)
 							end
 						end
 					end
@@ -582,7 +546,8 @@ local function HideHover()
 		lit = nil
 		for mapID, f in pairs(blobs) do
 			if type(f.UpdateMouseOverTooltip) == "function" then pcall(f.UpdateMouseOverTooltip, f, -1, -1) end
-			if f.__focus and blobTracked[mapID] then Light(f.__focus, mapID) end
+			local g = f.__focus
+			if g and type(g.UpdateMouseOverTooltip) == "function" then pcall(g.UpdateMouseOverTooltip, g, -1, -1) end
 		end
 	end
 end
@@ -615,7 +580,6 @@ local function Hover()
 				local ok, a, n = pcall(f.UpdateMouseOverTooltip, f, (x - l) / w, (b + h - y) / h)
 				lit = true
 				local id = ok and QuestFromHit(a, ids)
-				if f.__lx and not id then Light(f, mapID) end
 				if id then
 					found = id
 					if type(n) == "number" and n > 0 and type(f.GetTooltipIndex) == "function" then
@@ -645,7 +609,6 @@ hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
 	if hoverWait > 0 then return end
 	hoverWait = HOVER_EVERY
-	pcall(TryLight)
 	local ok = pcall(Hover)
 	if not ok then HideHover() end
 end)
