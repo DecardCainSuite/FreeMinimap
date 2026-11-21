@@ -250,6 +250,8 @@ local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
 local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12", "fmm_edge13", "fmm_edge14", "fmm_edge15", "fmm_edge16" }
 --{ the tracked quest's texture for a style (saturation halved, see FocusLook) }--
 local FOCUS = { fmm_edge7 = "fmm_edge12", fmm_edge13 = "fmm_edge13s", fmm_edge14 = "fmm_edge14s", fmm_edge16 = "fmm_edge16s" }
+--{ the other quests' texture for a style, drawn at full alpha (its own alpha is baked in) }--
+local FAINTS = { fmm_edge16 = "fmm_edge16f" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
@@ -264,6 +266,7 @@ preload:SetSize(1, 1); preload:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
 local toLoad = {}
 for _, name in ipairs(EDGES) do toLoad[#toLoad + 1] = name end
 for _, name in pairs(FOCUS) do toLoad[#toLoad + 1] = name end
+for _, name in pairs(FAINTS) do toLoad[#toLoad + 1] = name end
 for i, name in ipairs(toLoad) do
 	local t = preload:CreateTexture(nil, "ARTWORK")
 	t:SetSize(1, 1); t:SetPoint("TOPLEFT", i, 0)
@@ -329,6 +332,8 @@ local function FocusLook()
 end
 local function FaintLook()
 	local l = CurrentLook()
+	local name = l.texture:match("([^\\]+)$")
+	if name and FAINTS[name] then return { texture = MEDIA .. FAINTS[name], scalar = l.scalar, alpha = 255 } end
 	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
 end
 
