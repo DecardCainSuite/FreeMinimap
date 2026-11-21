@@ -247,7 +247,7 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
@@ -312,6 +312,15 @@ local function FindPoint(g, mapID)
 		end
 	end
 end
+--[[ (21/11, /fmm qdiag + green style 11) Lighting changes nothing: the frame boosts the saturation of
+	its border texture (about x2, hue and brightness kept): pale #A5D1FF -> #46A0FF, green (40,230,40) ->
+	(0,211,0). The native tracked line is the pale one, so the tracked quest gets style 7 with its
+	saturation halved (fmm_edge12), which the frame brings back to #A5D1FF. ]]
+local function FocusLook()
+	local l = CurrentLook()
+	if l.texture == MEDIA .. "fmm_edge7" then return { texture = MEDIA .. "fmm_edge12", scalar = l.scalar, alpha = l.alpha } end
+	return l
+end
 local function FaintLook()
 	local l = CurrentLook()
 	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
@@ -338,7 +347,7 @@ local function NewBlob(mapID)
 	local f = MakeBlobFrame(mapID, FaintLook(), areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
-	f.__focus = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel() + 1)
+	f.__focus = MakeBlobFrame(mapID, FocusLook(), areas:GetFrameLevel() + 1)
 	f.__probe = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel())
 	if f.__probe then f.__probe:SetAlpha(0); pcall(f.__probe.SetBorderAlpha, f.__probe, 0) end
 	return f
