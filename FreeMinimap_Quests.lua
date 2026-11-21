@@ -234,107 +234,36 @@ end
 --[[ The look of the areas' outline. The client has no colour setter for this frame (/fmm pins: DrawAll
 	DrawBlob DrawNone SetBorderAlpha SetBorderScalar SetBorderTexture SetFillAlpha SetFillTexture SetMapID…):
 	only textures, width and opacity. Tried in game on 15/11 (Thibault):
-	  - world map edge (UI-QuestBlob-Outside), scalar 0.25, alpha 200: one blue line with a glow — VALIDATED;
+	  - world map edge (UI-QuestBlob-Outside), scalar 0.25, alpha 200: one blue line with a glow — used
+	    until 21/11, then replaced by our own textures (below) for the minimap's exact colours;
 	  - same at 0.6 / 255: glow far too strong;
 	  - minimap ring (UI-QuestBlob-MinimapRing): a ring, so two lines across the edge (apart from 0.3),
 	    one blue line at 0.12; with a fill: rejected; ring line over a faint glow (two frames): rejected.
 	No fill: Thibault wants only the outline. ]]
-local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0.25, alpha = 200 }
-
---[[ Trial (21/11): our own edge textures, whose cross-section copies the real minimap's line as measured
-	on Thibault's screenshot (pale blue core #9ECCFC with a sharp inner side, a blue-grey glow #708BC3 on
-	the outer side only). How the frame lays a border texture along the edge is unknown, so there are four:
-	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
-	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
+--[[ 21/11: our own edge textures, built on measurements of the real minimap (Thibault's captures):
+	- the frame lays the border texture's height across the edge: its top row sits on the area's
+	  outline, its bottom row about 52 x scalar screen pixels outward (calibration texture, rainbow);
+	- the frame doubles the saturation of its border texture, keeping hue and brightness (#A5D1FF came
+	  out #46A0FF, (40,230,40) came out (0,211,0)), so the colours below are stored half-saturated;
+	- on the real minimap the tracked quest's area has a pale #A5D1FF line with a long soft glow (about
+	  37 px at the closest zoom), the other areas a faint lavender line (about (130,155,255) at 45 %).
+	So each zone has two drawn frames: f (the other quests) and f.__focus over it (the tracked quest).
+	Tried before and dropped: the world map's edge (too blue), the minimap ring, fills, halos made of a
+	second frame, "lighting" the tracked area through UpdateMouseOverTooltip (changes nothing). ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12", "fmm_edge13", "fmm_edge14", "fmm_edge15", "fmm_edge16" }
---{ the tracked quest's texture for a style (saturation halved, see FocusLook) }--
-local FOCUS = { fmm_edge7 = "fmm_edge12", fmm_edge13 = "fmm_edge13s", fmm_edge14 = "fmm_edge14s", fmm_edge16 = "fmm_edge16s" }
---{ the other quests' texture for a style, drawn at full alpha (its own alpha is baked in) }--
-local FAINTS = { fmm_edge16 = "fmm_edge16f" }
---[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
-	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
-	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
-	(21/11, later) 5 and 6 came out in their own colours, untinted: 7 = style 3 recoloured so its core is
-	the native #A5D1FF; 8 = style 7 with a 30 % fainter glow. ]]
+local SCALAR = 0.72   --{ 64 texture rows = about 37 px at the closest zoom, the native glow }--
+local TRACKED_LOOK = { texture = MEDIA .. "quest_edge_tracked", scalar = SCALAR, alpha = 255 }
+local OTHER_LOOK = { texture = MEDIA .. "quest_edge_other", scalar = SCALAR, alpha = 255 }
 --[[ (21/11) A quest-area frame given an addon TGA it had not seen turned it into the "missing" green, for
-	the whole session, even for ordinary textures; the same files shown first by ordinary textures (the
-	/fmm textest grid) displayed fine. So the files are loaded here first, by hidden ordinary textures,
-	before any quest-area frame asks for them. (The BLP copies written by Pillow were not read at all.) ]]
+	the whole session, even for ordinary textures; the same files shown first by ordinary textures
+	displayed fine. So the files are loaded here first, by hidden ordinary textures, before any
+	quest-area frame asks for them. (BLP copies written by Pillow were not read at all.) ]]
 local preload = CreateFrame("Frame", nil, UIParent)
 preload:SetSize(1, 1); preload:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10); preload:SetAlpha(0)
-local toLoad = {}
-for _, name in ipairs(EDGES) do toLoad[#toLoad + 1] = name end
-for _, name in pairs(FOCUS) do toLoad[#toLoad + 1] = name end
-for _, name in pairs(FAINTS) do toLoad[#toLoad + 1] = name end
-for i, name in ipairs(toLoad) do
+for i, look in ipairs({ TRACKED_LOOK, OTHER_LOOK }) do
 	local t = preload:CreateTexture(nil, "ARTWORK")
 	t:SetSize(1, 1); t:SetPoint("TOPLEFT", i, 0)
-	t:SetTexture("Interface\\AddOns\\" .. addonName .. "\\Media\\" .. name)
-end
-local function CurrentLook()
-	local pc = addonTab.pc
-	local style = pc and tonumber(pc.edgeStyle) or 7
-	if EDGES[style] then
-		return { texture = MEDIA .. EDGES[style], scalar = tonumber(pc and pc.edgeScalar) or 0.35, alpha = 255 }
-	end
-	return LINE
-end
---[[ (21/11, Thibault's captures) On the real minimap only the tracked quest's area has the bright line:
-	pale core #A5D1FF with its glow. The other areas get a
-	faint line, about a third of the blue. So each zone has two frames: f (the other quests, faint) and
-	f.__focus over it (the tracked quest, brighter texture). ]]
-local FAINT = 80   --{ border alpha of the untracked areas }
---[[ (21/11, iterations 10-12) The frame shows a border texture in its own colours until it is asked
-	UpdateMouseOverTooltip about a point outside its areas; from then on it tints it (red x0.42, green
-	x0.77, blue x1): style 7's pale #A5D1FF becomes the blue #46A0FF. On the real minimap the other
-	quests have that blue, faint, and the tracked one the pale line. So: the faint frame is asked about a
-	point off its map after each drawing (tinted), the focus frame is never asked (pale), and the cursor
-	is tested against a third, invisible frame (f.__probe) holding every area.
-	Iteration 13: the tracked line was tinted all the same. The state is shared by every quest-area
-	frame: the last point asked lights the quest under it and tints the others, everywhere. So after
-	every question (drawing, cursor), a point inside the tracked area is asked last (Relight): the
-	tracked quest stays lit (pale), the others tinted. The point is searched once on the focus frame
-	(it holds only the tracked quest): the quest's own place first, rings around it, then a grid. ]]
-local trackedPos = {}   --{ [mapID] = { x, y } the tracked quest's place on that map }
-local GRID = 20
-local function Ask(g, x, y)
-	local ok, a = pcall(g.UpdateMouseOverTooltip, g, x, y)
-	return ok and a and a ~= 0
-end
-local function FindPoint(g, mapID)
-	local p = trackedPos[mapID]
-	if p then
-		if Ask(g, p[1], p[2]) then return p[1], p[2] end
-		for r = 1, 8 do
-			local d = r * 0.01
-			for k = 0, 11 do
-				local x, y = p[1] + d * math.cos(k * math.pi / 6), p[2] + d * math.sin(k * math.pi / 6)
-				if Ask(g, x, y) then return x, y end
-			end
-		end
-	end
-	for i = 1, GRID - 1 do
-		for j = 1, GRID - 1 do
-			if Ask(g, i / GRID, j / GRID) then return i / GRID, j / GRID end
-		end
-	end
-end
---[[ (21/11, /fmm qdiag + green style 11) Lighting changes nothing: the frame boosts the saturation of
-	its border texture (about x2, hue and brightness kept): pale #A5D1FF -> #46A0FF, green (40,230,40) ->
-	(0,211,0). The native tracked line is the pale one, so the tracked quest gets style 7 with its
-	saturation halved (fmm_edge12), which the frame brings back to #A5D1FF. ]]
-local function FocusLook()
-	local l = CurrentLook()
-	local name = l.texture:match("([^\\]+)$")
-	if name and FOCUS[name] then return { texture = MEDIA .. FOCUS[name], scalar = l.scalar, alpha = l.alpha } end
-	return l
-end
-local function FaintLook()
-	local l = CurrentLook()
-	local name = l.texture:match("([^\\]+)$")
-	if name and FAINTS[name] then return { texture = MEDIA .. FAINTS[name], scalar = l.scalar, alpha = 255 } end
-	return { texture = l.texture, scalar = l.scalar, alpha = math.min(l.alpha, FAINT) }
+	t:SetTexture(look.texture)
 end
 
 local function MakeBlobFrame(mapID, look, level)
@@ -355,11 +284,11 @@ end
 --{ a zone's areas: f for the other quests, f.__focus over it for the tracked one, f.__probe for the cursor }--
 local function NewBlob(mapID)
 	if blobsWork == false then return end
-	local f = MakeBlobFrame(mapID, FaintLook(), areas:GetFrameLevel())
+	local f = MakeBlobFrame(mapID, OTHER_LOOK, areas:GetFrameLevel())
 	if not f then blobsWork = false return end
 	blobsWork = true
-	f.__focus = MakeBlobFrame(mapID, FocusLook(), areas:GetFrameLevel() + 1)
-	f.__probe = MakeBlobFrame(mapID, CurrentLook(), areas:GetFrameLevel())
+	f.__focus = MakeBlobFrame(mapID, TRACKED_LOOK, areas:GetFrameLevel() + 1)
+	f.__probe = MakeBlobFrame(mapID, OTHER_LOOK, areas:GetFrameLevel())
 	if f.__probe then f.__probe:SetAlpha(0); pcall(f.__probe.SetBorderAlpha, f.__probe, 0) end
 	return f
 end
@@ -373,12 +302,6 @@ local function Retire(mapID)
 		if f.__probe then f.__probe:Hide(); f.__probe:ClearAllPoints() end
 		blobs[mapID] = nil
 	end
-end
-
---{ a new look for the areas: their frames are made again (the look is set when a frame is made) }--
-function addonTab.QuestsRestyle()
-	for mapID in pairs(blobs) do Retire(mapID) end
-	dirty = true
 end
 
 local function DrawBlobs(perMap)
@@ -415,7 +338,6 @@ addonTab.QuestsHide = HideAll
 local function Read(maps, inst)
 	wipe(quests)
 	local seen, perMap = {}, {}
-	wipe(trackedPos)
 	local tracked = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
 	for _, mapID in ipairs(maps) do
 		local ok, list = pcall(C_QuestLog.GetQuestsOnMap, mapID)
@@ -429,7 +351,6 @@ local function Read(maps, inst)
 					seen[key] = true
 					local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id) or false
 					quests[#quests + 1] = { id = id, mapID = mapID, wx = wx, wy = wy, complete = complete, tracked = id == tracked }
-					if id == tracked then trackedPos[mapID] = { q.x, q.y } end
 					--[[ areas: only for the zone the player is in (maps[1]). On this client a QuestPOIFrame draws
 						the player's own zone whatever map it is given: the frames of the neighbouring zones drew
 						the same areas again, shrunk into their own rectangles (iteration 5, "ghosts"). ]]
@@ -543,16 +464,13 @@ function addonTab.QuestsUpdate(mapID, x, y, ppy, cw, ch)
 							if g.DrawNone then pcall(g.DrawNone, g) end
 							if g == f then
 								for _, id in ipairs(ids) do if id ~= focusID then pcall(g.DrawBlob, g, id, true) end end
-								if type(g.UpdateMouseOverTooltip) == "function" then pcall(g.UpdateMouseOverTooltip, g, -1, -1) end
 							elseif g == f.__probe then
 								for _, id in ipairs(ids) do pcall(g.DrawBlob, g, id, true) end
 							else
 								pcall(g.DrawBlob, g, focusID, true)
-								g.__tries = 0
 							end
 						end
 					end
-					if addonTab.QuestsRelight then pcall(addonTab.QuestsRelight) end
 				end
 			end
 		else
@@ -646,65 +564,11 @@ local function Hover()
 	GameTooltip:Show()
 end
 
-local function Relight()
-	for mapID, f in pairs(blobs) do
-		local g = f.__focus
-		if g and g:IsShown() and blobTracked[mapID] and type(g.UpdateMouseOverTooltip) == "function" then
-			if g.__lx and not Ask(g, g.__lx, g.__ly) then g.__lx = nil end
-			if not g.__lx and (g.__tries or 0) < 20 then
-				g.__tries = (g.__tries or 0) + 1
-				g.__lx, g.__ly = FindPoint(g, mapID)
-			end
-		end
-	end
-end
-addonTab.QuestsRelight = Relight
-
---{ TEMPORARY (21/11): /fmm qdiag, what the area frames hold and what the tracked-area search found }--
-function addonTab.QuestsDiag()
-	local P = function(...) print("|cffff8a3dFMM qdiag|r", ...) end
-	local l = CurrentLook()
-	P("style", tostring(addonTab.pc and addonTab.pc.edgeStyle), "texture", tostring(l.texture), "scalar", tostring(l.scalar))
-	local any
-	for mapID, f in pairs(blobs) do
-		any = true
-		local g, pr = f.__focus, f.__probe
-		local ids = blobQuests[mapID] or {}
-		P("map", mapID, "quests", table.concat(ids, ","), "tracked", tostring(blobTracked[mapID]),
-			"tracked pos", trackedPos[mapID] and string.format("%.3f,%.3f", trackedPos[mapID][1], trackedPos[mapID][2]) or "none")
-		P(" faint shown", tostring(f:IsShown()), "focus shown", tostring(g and g:IsShown()), "probe shown", tostring(pr and pr:IsShown()))
-		if g then
-			P(" focus point", g.__lx and string.format("%.3f,%.3f", g.__lx, g.__ly) or "NOT FOUND", "tries", tostring(g.__tries))
-			if trackedPos[mapID] then
-				local ok, a, n = pcall(g.UpdateMouseOverTooltip, g, trackedPos[mapID][1], trackedPos[mapID][2])
-				P(" focus asked at quest pos ->", tostring(ok), tostring(a), tostring(n))
-			end
-			local hits = 0
-			for i = 1, 19 do for j = 1, 19 do
-				local ok, a = pcall(g.UpdateMouseOverTooltip, g, i / 20, j / 20)
-				if ok and a and a ~= 0 then hits = hits + 1 end
-			end end
-			P(" focus grid hits (of 361)", hits)
-		end
-		if pr then
-			local hits = 0
-			for i = 1, 19 do for j = 1, 19 do
-				local ok, a = pcall(pr.UpdateMouseOverTooltip, pr, i / 20, j / 20)
-				if ok and a and a ~= 0 then hits = hits + 1 end
-			end end
-			P(" probe grid hits (of 361)", hits)
-		end
-		if g then pcall(Relight) end
-	end
-	if not any then P("no area frame") end
-end
-
 hover:SetScript("OnUpdate", function(_, elapsed)
 	hoverWait = hoverWait - elapsed
 	if hoverWait > 0 then return end
 	hoverWait = HOVER_EVERY
 	local ok = pcall(Hover)
 	if not ok then HideHover() end
-	pcall(Relight)
 end)
 R:HookScript("OnLeave", function() HideHover() end)
