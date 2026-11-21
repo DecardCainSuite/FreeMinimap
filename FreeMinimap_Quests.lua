@@ -246,7 +246,23 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4" }   --{ new names: the first ones stayed green (not found) in game, even after a restart }--
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8" }
+--[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
+	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
+	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
+	(21/11, later) 5 and 6 came out in their own colours, untinted: 7 = style 3 recoloured so its core is
+	the native #A5D1FF; 8 = style 7 with a 30 % fainter glow. ]]
+--[[ (21/11) A quest-area frame given an addon TGA it had not seen turned it into the "missing" green, for
+	the whole session, even for ordinary textures; the same files shown first by ordinary textures (the
+	/fmm textest grid) displayed fine. So the files are loaded here first, by hidden ordinary textures,
+	before any quest-area frame asks for them. (The BLP copies written by Pillow were not read at all.) ]]
+local preload = CreateFrame("Frame", nil, UIParent)
+preload:SetSize(1, 1); preload:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10); preload:SetAlpha(0)
+for i, name in ipairs(EDGES) do
+	local t = preload:CreateTexture(nil, "ARTWORK")
+	t:SetSize(1, 1); t:SetPoint("TOPLEFT", i, 0)
+	t:SetTexture("Interface\\AddOns\\" .. addonName .. "\\Media\\" .. name)
+end
 local function CurrentLook()
 	local pc = addonTab.pc
 	local style = pc and tonumber(pc.edgeStyle) or 0

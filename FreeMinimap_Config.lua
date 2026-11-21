@@ -864,6 +864,10 @@ SlashCmdList["FREEMINIMAP"] = function(msg)
     if ns.conflict then ns.ToggleOptions(); return end
     local pc = ns.pc
     if not pc then return end
+    if msg == "textest" then
+        if ns.TextureTest then ns.TextureTest() end
+        return
+    end
     if msg == "pins" then
         if ns.PinsDebug then ns.PinsDebug() end
         return
