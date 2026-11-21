@@ -521,8 +521,24 @@ local function OverMapOnly()
 	if not R:IsMouseOver() then return false end
 	if Minimap:IsShown() and (Minimap:GetAlpha() or 1) > 0 and Minimap:IsMouseOver() then return false end
 	local foci = GetMouseFoci and GetMouseFoci() or { GetMouseFocus and GetMouseFocus() }
-	local f = foci and foci[1]
-	return f == nil or f == R
+	--[[ (21/11, /fmm hdiag) Another addon's see-through layer can be the first frame under the cursor:
+		FastGuildInvite's Wingman puts a frame over the whole screen (TOOLTIP strata) that lets mouse
+		motion and clicks through, so the area tooltip never showed. Such layers are skipped: frames
+		that pass mouse motion through, or that cover the whole screen. ]]
+	local uw, uh = UIParent:GetSize()
+	for _, f in ipairs(foci or {}) do
+		local through = false
+		if f.GetPropagateMouseMotion then
+			local ok, v = pcall(f.GetPropagateMouseMotion, f)
+			through = ok and v and true or false
+		end
+		if not through and f.GetSize and uw and uh then
+			local ok, w, h = pcall(f.GetSize, f)
+			through = ok and w and h and w >= uw * 0.9 and h >= uh * 0.9 or false
+		end
+		if not through then return f == R end
+	end
+	return true
 end
 
 local function Hover()
