@@ -131,15 +131,54 @@ local function QuestLines(id, complete, only)
 		GameTooltip:AddLine(_G.QUEST_WATCH_QUEST_READY or "Ready for turn-in", 0.5, 0.95, 0.4)
 		return
 	end
-	local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
-	local count, line = _G.GetNumQuestLeaderBoards, _G.GetQuestLogLeaderBoard
-	if index and count and line then
-		for i = 1, count(index) or 0 do
-			local text, _, finished = line(i, index)
-			if text and (only and only[i] or (not only and not finished)) then
-				GameTooltip:AddLine((_G.QUEST_DASH or "- ") .. text, 1, 1, 1, true)
+	--{ the objectives: { text, finished } in order (the modern call first, the quest log's lines otherwise) }--
+	local list = {}
+	if C_QuestLog.GetQuestObjectives then
+		local ok, objs = pcall(C_QuestLog.GetQuestObjectives, id)
+		if ok and type(objs) == "table" then
+			for i, o in ipairs(objs) do
+				if type(o) == "table" and o.text then list[i] = { o.text, o.finished } end
 			end
 		end
+	end
+	if #list == 0 then
+		local index = C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
+		local count, line = _G.GetNumQuestLeaderBoards, _G.GetQuestLogLeaderBoard
+		if index and count and line then
+			for i = 1, count(index) or 0 do
+				local text, _, finished = line(i, index)
+				if text then list[#list + 1] = { text, finished } end
+			end
+		end
+	end
+	local n = #list
+	--[[ the area's objective numbers (GetTooltipIndex) may count from 0 on this client: with them the
+		tooltip showed no objective at all (21/11). Taken as they are if they fall within the objectives,
+		shifted by one if they start at 0; failing both, every unfinished objective. ]]
+	if only then
+		local fits, zero = false, false
+		for k in pairs(only) do
+			if k >= 1 and k <= n then fits = true end
+			if k == 0 then zero = true end
+		end
+		if zero then
+			local shifted = {}
+			for k in pairs(only) do shifted[k + 1] = true end
+			only = shifted
+		elseif not fits then
+			only = nil
+		end
+	end
+	local shown = 0
+	for pass = 1, 2 do
+		for i = 1, n do
+			local text, finished = list[i][1], list[i][2]
+			if (pass == 1 and only and only[i]) or (pass == 2 and not finished) then
+				GameTooltip:AddLine((_G.QUEST_DASH or "- ") .. text, 1, 1, 1, true)
+				shown = shown + 1
+			end
+		end
+		if shown > 0 then break end
 	end
 end
 
