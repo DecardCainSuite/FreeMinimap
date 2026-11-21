@@ -247,7 +247,9 @@ local LINE = { texture = "Interface\\WorldMap\\UI-QuestBlob-Outside", scalar = 0
 	the profile along the texture's width (u) or height (v), each way round. /fmm edge <0-4> [width]
 	switches between them in game (0 = LINE above); pc.edgeStyle / pc.edgeScalar keep the choice. ]]
 local MEDIA = "Interface\\AddOns\\" .. addonName .. "\\Media\\"
-local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12" }
+local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5", "fmm_edge6", "fmm_edge7", "fmm_edge8", "fmm_edge9", "fmm_edge10", "fmm_edge11", "fmm_edge12", "fmm_edge13", "fmm_edge14" }
+--{ the tracked quest's texture for a style (saturation halved, see FocusLook) }--
+local FOCUS = { fmm_edge7 = "fmm_edge12", fmm_edge13 = "fmm_edge13s", fmm_edge14 = "fmm_edge14s" }
 --[[ 3 = the right way round (sharp inner side, glow outward), but the frame tints its border: our pale
 	#9ECCFC core came out #3C9AFE (red x0.38, green x0.75). 5 = style 3 with the colours divided by that
 	tint (red capped at 255: the native red can't be reached); 6 = style 3 in white.
@@ -259,7 +261,10 @@ local EDGES = { "fmm_edge1", "fmm_edge2", "fmm_edge3", "fmm_edge4", "fmm_edge5",
 	before any quest-area frame asks for them. (The BLP copies written by Pillow were not read at all.) ]]
 local preload = CreateFrame("Frame", nil, UIParent)
 preload:SetSize(1, 1); preload:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10); preload:SetAlpha(0)
-for i, name in ipairs(EDGES) do
+local toLoad = {}
+for _, name in ipairs(EDGES) do toLoad[#toLoad + 1] = name end
+for _, name in pairs(FOCUS) do toLoad[#toLoad + 1] = name end
+for i, name in ipairs(toLoad) do
 	local t = preload:CreateTexture(nil, "ARTWORK")
 	t:SetSize(1, 1); t:SetPoint("TOPLEFT", i, 0)
 	t:SetTexture("Interface\\AddOns\\" .. addonName .. "\\Media\\" .. name)
@@ -318,7 +323,8 @@ end
 	saturation halved (fmm_edge12), which the frame brings back to #A5D1FF. ]]
 local function FocusLook()
 	local l = CurrentLook()
-	if l.texture == MEDIA .. "fmm_edge7" then return { texture = MEDIA .. "fmm_edge12", scalar = l.scalar, alpha = l.alpha } end
+	local name = l.texture:match("([^\\]+)$")
+	if name and FOCUS[name] then return { texture = MEDIA .. FOCUS[name], scalar = l.scalar, alpha = l.alpha } end
 	return l
 end
 local function FaintLook()
